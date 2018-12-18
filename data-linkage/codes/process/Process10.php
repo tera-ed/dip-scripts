@@ -10,7 +10,7 @@
  */
 
 class Process10 {
-	private $logger, $db, $validate, $mail;
+	private $logger, $db, $crm_db, $rds_db, $validate, $mail;
 	private $isError = false;
 
 	const databaseTable = "m_corporation";
@@ -37,6 +37,9 @@ class Process10 {
 	  try{
 			//initialize Database
 			$this->db = new Database($this->logger);
+			$this->crm_db = new CRMDatabase($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
+
 		  	$path = getImportPath(true);
 		  	$filename = $IMPORT_FILENAME[$procNo];
 		  	$files = getMultipleCsv($filename,$path);
@@ -87,6 +90,17 @@ class Process10 {
 				// close database connection
 				$this->db->disconnect();
 			}
+			if($this->crm_db) {
+				if(isset($cntr)){
+					$this->crm_db->rollback();
+				}
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
 			$this->mail->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
@@ -96,6 +110,14 @@ class Process10 {
 			if($this->db) {
 				// close database connection
 				$this->db->disconnect();
+			}
+			if($this->crm_db) {
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
 			}
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
@@ -113,6 +135,14 @@ class Process10 {
 		if($this->db) {
 			// close database connection
 			$this->db->disconnect();
+		}
+		if($this->crm_db) {
+			// close database connection
+			$this->crm_db->disconnect();
+		}
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
 		}
 	}
 
@@ -144,19 +174,18 @@ class Process10 {
 		global $MAX_COMMIT_SIZE;
 		$result = null; $counter = 0;
 		try {
-
 			$kng_in_keiflg = $header[2];
 			$office_id = $header[3];
-
 			foreach ($list as $row => &$data){
 				if(($counter % $MAX_COMMIT_SIZE) == 0){
 					$this->db->beginTransaction();
+					$this->crm_db->beginTransaction();
 				}
 				$validRow = $this->errorChecking($data,$row,$csv,$header);
 				if($validRow === true){
 					$key = array($data[$office_id]);
 					//Search for item: 「LBC」=「m_corporation.office_id」 record
-					$dbResult = $this->db->getDataCount(self::databaseTable,"office_id=?",$key);
+					$dbResult = $this->rds_db->getDataCount(self::databaseTable,"office_id=?",$key);
 					$this->logger->debug("Database Result for office_id = ". $data[$office_id] ." is ".$dbResult);
 					// If the search results are not 0件 (0 records)
 					if($dbResult > 0){
@@ -169,6 +198,7 @@ class Process10 {
 				}
 				if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row+1) == sizeof($list)){
 					$this->db->commit();
+					$this->crm_db->commit();
 				}
 
 			}
@@ -212,14 +242,13 @@ class Process10 {
 	function getData($fields,$table,$where){
 		try{
 			$sql  =' SELECT '.$fields.' FROM '.$table.' WHERE '.$where;
-			$result = $this->db->getDataSql($sql);
+			$result = $this->rds_db->getDataSql($sql);
 
 		}catch(Exception $e){
 			throw $e;
 		}
 		return $result;
 	}
-
 
 
 	/**
@@ -242,8 +271,9 @@ class Process10 {
 			$condition = "office_id = ?";
 			$params = array($officeId);
 			//update data
-			$result = $this->db->updateData("m_corporation", $updateFields,$condition, $params);
-
+			$result = $this->db->updateData(self::databaseTable, $updateFields,$condition, $params);
+			$result2 = $this->crm_db->updateData(self::databaseTable, $updateFields,$condition, $params);
+			
 			if(!$result){
 				$this->isError = true;
 				$this->logger->error("Failed to update. [office_id = $officeId]");

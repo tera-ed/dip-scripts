@@ -2,6 +2,9 @@
 require_once('nayose/common/Logger.php');
 require_once('nayose/common/Mail.php');
 require_once('nayose/common/Database.php');
+require_once('nayose/common/CRMDatabase.php');
+require_once('nayose/common/RDSDatabase.php');
+require_once('nayose/common/RecolinDatabase.php');
 require_once('nayose/common/CSVUtils.php');
 require_once('nayose/common/Validation.php');
 

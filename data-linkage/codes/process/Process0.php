@@ -84,15 +84,15 @@ class Process0{
 	 * Execute process 1 process
 	 */
 	function execProcess(){
-		ini_set('memory_limit', '30G');
+		ini_set('memory_limit', '37G');
 		$this->logger->info('START - LBC BATCH');
 		try{
 			//initialize process 0
 			$procList = $this->getParams();
 			if($procList){
 				$processNo = 0;
-				//call process 1 to 19
-				for($i = 1; $i <= 19; $i++ ){
+				//call process 1 to 20
+				for($i = 1; $i <= 20; $i++ ){
 					if(in_array($i, $procList)){
 						$processNo = $i;
 						//Temporary remove process 11

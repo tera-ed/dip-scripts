@@ -8,14 +8,13 @@
  *
  */
 class Process3{
-
-	private $logger, $db, $mail, $validate;
+	private $logger, $db, $recolin_db, $mail, $validate;
 	private $isError = false;
 
-	const TABLE = 'm_lbc';
 	const KEY = 'office_id';
-
+	const M_TABLE = 'm_lbc';
 	const WK_B_TABLE = 'wk_t_tmp_quarter_lbc_data';
+	
 	const SHELL = 'load_wk_t_tmp_Quarter_LBC_DATA.sh';
 	const LIMIT = 5000;
 	const OFFSET_LIMIT = 10000;
@@ -34,6 +33,8 @@ class Process3{
 		$newFile = "";
 		try{
 			$this->db = new Database($this->logger);
+			$this->recolin_db = new RecolinDatabase($this->logger);
+			
 			$path = getImportPath(true);
 			$filename = $IMPORT_FILENAME[$procNo];
 
@@ -74,6 +75,13 @@ class Process3{
 				// close database connection
 				$this->db->disconnect();
 			}
+			if($this->recolin_db) {
+				if(isset($cntr)){
+					$this->recolin_db->rollback();
+				}
+				// close database connection
+				$this->recolin_db->disconnect();
+			}
 			$this->mail->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
@@ -83,6 +91,10 @@ class Process3{
 			if($this->db) {
 				// close database connection
 				$this->db->disconnect();
+			}
+			if($this->recolin_db) {
+				// close database connection
+				$this->recolin_db->disconnect();
 			}
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
@@ -100,6 +112,10 @@ class Process3{
 		if($this->db) {
 			// close database connection
 			$this->db->disconnect();
+		}
+		if($this->recolin_db) {
+			// close database connection
+			$this->recolin_db->disconnect();
 		}
 	}
 
@@ -138,22 +154,22 @@ class Process3{
 			$officeIdHeader = $header[0]; // office_id
 			foreach ($dataInsert as $row => $data){
 				if(($cntr % $MAX_COMMIT_SIZE) == 0){
-					$this->db->beginTransaction();
+					$this->recolin_db->beginTransaction();
 				}
 				$tableList = emptyToNull($data);
 				//check if row contents are valid
 				$validRow = $this->checkContents($tableList, $row, $csv, $header);
 				if($validRow === true){
 					$key = array($tableList[$officeIdHeader]);
-					//insert update data on self::TABLE_1
-					$result=$this->db->insertUpdateData(self::TABLE, $tableList, self::KEY, $key);
+					//insert update data on self::TABLE
+					$result=$this->recolin_db->insertUpdateData(self::M_TABLE, $tableList, self::KEY, $key);
 					if(!$result){
-						$this->logger->error("Failed to register [$officeIdHeader $tableList[$officeIdHeader]] to ". self::TABLE);
+						$this->logger->error("Failed to register [$officeIdHeader $tableList[$officeIdHeader]] to ". self::M_TABLE);
 						$this->isError = true;
 						# 2016/09/08 四半期処理のために処理中断をスキップに
-						#throw new Exception("Process3 Failed to register [$officeIdHeader $tableList[$officeIdHeader]] to ". self::TABLE);
+						#throw new Exception("Process3 Failed to register [$officeIdHeader $tableList[$officeIdHeader]] to ". self::M_TABLE);
 					} else {
-						$this->logger->info("Data with $officeIdHeader: $tableList[$officeIdHeader] inserted/updated to ". self::TABLE);
+						$this->logger->info("Data with $officeIdHeader: $tableList[$officeIdHeader] inserted/updated to ". self::M_TABLE);
 					}
 					$cntr++;
 				}else{ // 20160908 validation_check でエラーあった場合はログ表示して該当レコードスキップ （バリデーションの内容はValidation.phpの中でログ表示）
@@ -162,7 +178,7 @@ class Process3{
 				}
 				# 1000件ごとにコミット
 				if(($cntr % $MAX_COMMIT_SIZE) == 0 || ($row +1) == sizeof($dataInsert)){
-					$this->db->commit();
+					$this->recolin_db->commit();
 				}
 			}
 		} catch( Exception $e) {

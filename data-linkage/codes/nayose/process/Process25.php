@@ -7,10 +7,7 @@
  *
  */
 class Process25{
-	private $logger;
-	private $mail;
-	private $db;
-	private $isError = false;
+	private $logger, $mail, $db, $isError = false;
 
 	const WK_T_TABLE = 'wk_t_nayose_mda_result';
 	const WK_BATCH_SYNC_NO_KEY_NAME = 'wk_t_nayose_mda_result_seq_no';
@@ -80,14 +77,8 @@ class Process25{
 				if($commited){
 					$this->db->commit();
 				}
-
-				// update delete flag in incorrect records
-				$updateResult = $this->updateRecord($batchSyncNo);
-
 				// request data for nayose process
 				$result = $this->reqData($batchSyncNo);
-
-
 				
 				// generate csv from nayose process
 				// データ0件の場合も空ファイル作成
@@ -149,29 +140,6 @@ class Process25{
 	}
 
 	/**
-	 * Update incorrect records
-	 * @return PDOStatement
-	 */
-	private function updateRecord($batchSyncNo){
-		try {
-			// begin transaction
-			$this->db->beginTransaction();
-			// update records
-			$updateDelFlag = array('delete_flag'=>1);
-			$condition = " batch_sync_seq_no = '".$batchSyncNo."' AND ".self::KEY_2." NOT IN (SELECT ".self::KEY_2." FROM (SELECT MIN(".self::KEY_2.") AS ".self::KEY_2." FROM
-					".self::WK_T_TABLE." GROUP BY ".self::KEY_1.") as kei) OR ".self::KEY_2." IS NULL ";
-			$result = $this->db->updateData(self::WK_T_TABLE, $updateDelFlag, $condition, null);
-			// commit
-			$this->db->commit();
-		}catch (PDOException $e1){
-			throw $e1;
-		} catch (Exception $e2){
-			throw $e2;
-		}
-		return $result;
-	}
-
-	/**
 	 * Request data to be inserted into new CSV
 	 * @return the result data
 	 */
@@ -179,12 +147,12 @@ class Process25{
 		try { // execute nayose process
 			$paramKey = array(self::KEY_1);
 			// request data
-			$sql = "SELECT kei.media_code, kei2.office_id, kei.result_flg, kei.detail_lvl, kei.detail_content 
+			$sql = "SELECT kei.media_code, kei.office_id, kei.result_flg, kei.detail_lvl, kei.detail_content 
 					FROM ( SELECT * FROM ".self::WK_T_TABLE." WHERE batch_sync_seq_no = '".$batchSyncNo."') kei INNER JOIN
-					(SELECT media_code, office_id as office_id 
-						FROM ".self::WK_T_TABLE." WHERE delete_flag IS FALSE GROUP BY ".self::KEY_1.") kei2 ON 
-						kei.".self::KEY_1." <=> kei2.".self::KEY_1;
-						//nAND kei.".self::KEY_2." <=> kei2.".self::KEY_2
+					(SELECT media_code, MIN(office_id) as office_id 
+						FROM ".self::WK_T_TABLE." WHERE batch_sync_seq_no = '".$batchSyncNo."' GROUP BY ".self::KEY_1.") kei2 ON 
+						kei.".self::KEY_1." <=> kei2.".self::KEY_1." 
+						AND kei.".self::KEY_2." <=> kei2.".self::KEY_2;
 			$result = $this->db->getDataSql($sql, null);
 		} catch (PDOException $e1){
 			throw $e1;

@@ -24,7 +24,7 @@ class Database{
 			$conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
 			$conn->setAttribute(PDO::ATTR_AUTOCOMMIT, FALSE);
 			$conn->exec("SET NAMES utf8");
-			$this->logger->info('Connected successfully');
+			$this->logger->info('Connected successfully BATCH DB');
 		}
 		catch(Exception $e){
 			$this->logger->error("Connection failed: " . $e->getMessage());
@@ -77,7 +77,8 @@ class Database{
 	 */
 	function getAllData($table){
 		try {
-			$sql = "SELECT * FROM $table";
+			$from = $this->setSchema($table);
+			$sql = "SELECT * FROM $from";
 			$query = $this->executeQuery($sql);
 			$list = $query->fetchAll(PDO::FETCH_ASSOC);
 		}catch(Exception $e){
@@ -90,17 +91,18 @@ class Database{
 	/**
 	 * Executes SELECT data with condition
 	 * @param string $fields - fields to select
-	 * @param string $from - table to select
+	 * @param string $table - table to select
 	 * @param string $condition - where condition
 	 * @param array $params - values of the condition ?'s
 	 * @return array of data
 	 */
-	function getData($fields, $from, $condition = null, $params = array()){
+	function getData($fields, $table, $condition = null, $params = array()){
 		try {
 			if(!$fields || empty($fields)) {
 				$fields = "*";
 			}
 
+			$from = $this->setSchema($table);
 			$sql = "SELECT $fields FROM $from";
 			if($condition && !empty($condition)) {
 				$sql .=" WHERE $condition";
@@ -117,16 +119,17 @@ class Database{
 	/**
 	 * Executes SELECT data with condition
 	 * @param string $fields - fields to select
-	 * @param string $from - table to select
+	 * @param string $table - table to select
 	 * @param string $condition - where condition
 	 * @param array $params - values of the condition ?'s
 	 * @param array $limit - limit
 	 * @param array $offset - offset
 	 * @return array of data
 	 */
-	function getLimitOffsetData($fields, $from, $condition = null, $params = array(), $limit = 500, $offset = 0){
+	function getLimitOffsetData($fields, $table, $condition = null, $params = array(), $limit = 500, $offset = 0){
 		$list = array();
 		try {
+			$from = $this->setSchema($table);
 			$sql = "SELECT * FROM $from";
 			if($fields && !empty($fields)) {
 				$sql = "SELECT $fields FROM $from";
@@ -174,7 +177,8 @@ class Database{
 	 */
 	function getDataCount($table, $condition, $params){
 		try {
-			$sql = "SELECT COUNT(*) FROM $table ";
+			$from = $this->setSchema($table);
+			$sql = "SELECT COUNT(*) FROM $from ";
 			if($condition && !empty($condition)){
 				$sql .= " WHERE $condition";
 			}
@@ -199,7 +203,9 @@ class Database{
 			$insertData = $this->getInsertFields($params, $table);
 			$columns = implode(',', array_keys($insertData));
 			$values = implode(',', array_fill(0, count($insertData), '?'));
-			$sql = "INSERT INTO $table ({$columns}) VALUES ({$values})";
+			
+			$from = $this->setSchema($table);
+			$sql = "INSERT INTO $from ({$columns}) VALUES ({$values})";
 			$query = $this->executeQuery($sql, array_values($insertData), true);
 			$count = $query->rowCount();
 		}catch(Exception $e){
@@ -247,6 +253,8 @@ class Database{
 		try{
 			$this->logger->info("Update data to $table table");
 			$fields = $this->getUpdateFields($updateFields, $table);
+			
+			$from = $this->setSchema($table);
 			$sql = "UPDATE $table SET $fields";
 
 			if($condition && !empty($condition)){
@@ -270,7 +278,8 @@ class Database{
 	 */
 	function deleteData($table, $condition = null, $params = array()){
 		try{
-			$sql = "DELETE FROM $table";
+			$from = $this->setSchema($table);
+			$sql = "DELETE FROM $from";
 			if($condition && !empty($condition)){
 				$sql .= " WHERE $condition";
 			}
@@ -288,7 +297,7 @@ class Database{
 	 */
 	function disconnect(){
 		$this->dbconn = null;
-		$this->logger->info('DB disconnected successfully');
+		$this->logger->info('BATCH DB disconnected successfully');
 	}
 
 	/**
@@ -297,12 +306,13 @@ class Database{
 	 * @param string $table
 	 */
 	function getInsertFields($params, $table){
-		global $SYSTEM_USER;
+		global $SYSTEM_USER, $RECOLIN_DB;
 		$addedFields = array();
 		$currentDate = date("Y/m/d H:i:s");
 		//if table starts with 'm_' or 't_media_mass'
 		if(strpos($table, 'm_') === 0 
-		|| in_array($table, array('t_media_mass'))){
+		|| in_array($table, array('t_media_mass'))
+		|| strpos($table, $RECOLIN_DB['db_name'].".".'m_') === 0){
 			if($table == 'm_obic_application'){
 				$currentDate = date("Y/m/d");
 				$currentTime = date("H:i:s");
@@ -318,12 +328,11 @@ class Database{
 				$addedFields["update_time"] = $currentTime;
 			}
 		//if table starts with 't_excel_media_history' or 't_media_match_wait'
-		} else if(in_array($table, array('t_excel_media_history', 
-									't_media_match_wait'))){
+		} else if(in_array($table, array('t_excel_media_history', 't_media_match_wait'))){
 			$addedFields = array(
 				"create_date" => $currentDate
 			);
-		}else if (in_array($table, array('t_excel_media_info'))){
+		} else if (in_array($table, array('t_excel_media_info', 'wk_t_lbc_crm_link'))){
 			$addedFields = array(
 				"create_date" => $currentDate,
 				"update_date" => $currentDate
@@ -339,7 +348,7 @@ class Database{
 	 * @return string
 	 */
 	function getUpdateFields($params, $table){
-		global $SYSTEM_USER;
+		global $SYSTEM_USER, $RECOLIN_DB;
 		$set = '';
 		foreach($params as $key => $value){
 			if(is_null($value)){
@@ -355,7 +364,8 @@ class Database{
 			}
 		}
 		//if table starts with 'm_'
-		if(strpos($table, 'm_') === 0){
+		if(strpos($table, 'm_') === 0
+		|| strpos($table, $RECOLIN_DB['db_name'].".".'m_') === 0){
 			$currentDate = date("Y/m/d H:i:s");
 			if($table == 'm_obic_application'){
 				$currentDate = date("Y/m/d");
@@ -364,8 +374,9 @@ class Database{
 			}
 			$set .= "`update_date`='$currentDate', ";
 			$set .= "`update_user_code`='$SYSTEM_USER', ";
+		
 		}
-		if($table == 't_excel_media_info'){
+		if (in_array($table, array('t_excel_media_info', 'wk_t_lbc_crm_link'))){
 			$currentDate = date("Y/m/d H:i:s");
 			$set .= "`update_date`='$currentDate', ";
 		}
@@ -430,6 +441,39 @@ class Database{
 			throw $e;
 		}
 		return $result;
+	}
+
+	/**
+	 * set schema
+	 * @param string $table
+	 * @return string of data
+	 */
+	function setSchema($table){
+		global $RECOLIN_DB;
+		if(in_array($table, array('m_lbc'))){
+			return $RECOLIN_DB['db_name'].".".$table;
+		}
+		return $table;
+	}
+
+	/**
+	 * Executes truncate query
+	 * @param string $table
+	 */
+	function truncateData($table){
+		$params = array();
+		$bool = false;
+		try{
+			$from = $this->setSchema($table);
+			$sql = "TRUNCATE $from";
+			$query = $this->executeQuery($sql, $params);
+			$bool = true;
+		}catch (Exception $e){
+			$this->logger->error($sql, $e->getMessage());
+			$bool = false;
+			throw $e;
+		}
+		return $bool;
 	}
 }
 ?>

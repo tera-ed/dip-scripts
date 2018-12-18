@@ -2,12 +2,34 @@
 // ----------------------------
 // database configuration
 // ----------------------------
-$DB['db_server'] = 'localhost';
+// バッチサーバー
+$DB['db_server'] = 'dip-vpc03-crai-recolin-db01.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
 $DB['db_port'] = '3306';
-$DB['db_username'] = 'dip_batch_user';
-$DB['db_password'] = 'zt9oxahm';
-$DB['db_name'] = 'dip_crm_db';
+$DB['db_username'] = 'dipai';
+$DB['db_password'] = 'dipeengine';
+$DB['db_name'] = 'CRM_BATCH_DB';
 $DB['db_type'] = 'mysql';
+// 登録サーバー（LBC）
+$RECOLIN_DB['db_server'] = 'dip-vpc03-crai-recolin-db01.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
+$RECOLIN_DB['db_port'] = '3306';
+$RECOLIN_DB['db_username'] = 'dipai';
+$RECOLIN_DB['db_password'] = 'dipeengine';
+$RECOLIN_DB['db_name'] = 'recolin_aidb01';
+$RECOLIN_DB['db_type'] = 'mysql';
+// 登録サーバー（CORP）
+$CRM_DB['db_server'] = 'dip-vpc03-crm-db01.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
+$CRM_DB['db_port'] = '3306';
+$CRM_DB['db_username'] = 'root';
+$CRM_DB['db_password'] = 'zt9oxahm';
+$CRM_DB['db_name'] = 'CRMINF';
+$CRM_DB['db_type'] = 'mysql';
+// 参照サーバー
+$RDS_DB['db_server'] = 'dip-vpc03-crm-db02.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
+$RDS_DB['db_port'] = '3306';
+$RDS_DB['db_username'] = 'root';
+$RDS_DB['db_password'] = 'zt9oxahm';
+$RDS_DB['db_name'] = 'CRMINF';
+$RDS_DB['db_type'] = 'mysql';
 
 // @TODO: Set the default timezone as per your preference
 // default value = UTC
@@ -84,71 +106,71 @@ $FTP_IMPORT_PATH['CorpMaster'] = '/home/teramgmt/share/CorpMaster/Response';
 $FTP_IMPORT_PATH['NGCorp'] = '/home/teramgmt/share/NGCorp/Response';
 $FTP_IMPORT_PATH['RivalMedia'] = '/home/teramgmt/share/RivalMedia/Response';
 
-$FTP_EXPORT_PATH['Obic'] = '/home/teramgmt/share/Obic/Request';
-$FTP_EXPORT_PATH['CorpMaster'] = '/home/teramgmt/share/CorpMaster/Request';
-$FTP_EXPORT_PATH['NGCorp'] = '/home/teramgmt/share/NGCorp/Request';
-$FTP_EXPORT_PATH['RivalMedia'] = '/home/teramgmt/share/RivalMedia/Request';
+$FTP_EXPORT_PATH['Obic'] = '/home/teramgmt/temp/LS-request';
+$FTP_EXPORT_PATH['CorpMaster'] = '/home/teramgmt/temp/LS-request';
+$FTP_EXPORT_PATH['NGCorp'] = '/home/teramgmt/temp/LS-request';
+$FTP_EXPORT_PATH['RivalMedia'] = '/home/teramgmt/temp/LS-request';
 
 // ----------------------------
 // email settings
 // ----------------------------
 $MAIL = array(
 	'from' => 'ittera.wk@gmail.com',
-	'1' => array('to'=>'ittera.wk@gmail.com',
+	'1' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process1 Encountered Error.'),
-	'2' => array('to'=>'ittera.wk@gmail.com',
+	'2' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process2 Encountered Error.'),
-	'3' => array('to'=>'ittera.wk@gmail.com',
+	'3' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process3 Encountered Error.'),
-	'4' => array('to'=>'ittera.wk@gmail.com',
+	'4' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process4 Encountered Error.'),
-	'5' => array('to'=>'ittera.wk@gmail.com',
+	'5' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process5 Encountered Error.'),
-	'6' => array('to'=>'ittera.wk@gmail.com',
+	'6' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process6 Encountered Error.'),
-	'7' => array('to'=>'ittera.wk@gmail.com',
+	'7' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process7 Encountered Error.'),
-	'8' => array('to'=>'ittera.wk@gmail.com',
+	'8' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process8 Encountered Error.'),
-	'9' => array('to'=>'ittera.wk@gmail.com',
+	'9' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process9 Encountered Error.'),
-	'10' => array('to'=>'ittera.wk@gmail.com',
+	'10' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process10 Encountered Error.'),
-	'11' => array('to'=>'ittera.wk@gmail.com',
+	'11' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process11 Encountered Error.'),
-	'12' => array('to'=>'ittera.wk@gmail.com',
+	'12' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process12 Encountered Error.'),
-	'13' => array('to'=>'ittera.wk@gmail.com',
+	'13' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process13 Encountered Error.'),
-	'14' => array('to'=>'ittera.wk@gmail.com',
+	'14' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process14 Encountered Error.'),
-	'15' => array('to'=>'ittera.wk@gmail.com',
+	'15' => array('to'=>'ju-yashima@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process15 Encountered Error.'),
-	'16' => array('to'=>'ittera.wk@gmail.com',
+	'16' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process16 Encountered Error.'),
-	'17' => array('to'=>'ittera.wk@gmail.com',
+	'17' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process17 Encountered Error.'),
-	'18' => array('to'=>'ittera.wk@gmail.com',
+	'18' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process18 Encountered Error.'),
-	'19' => array('to'=>'ittera.wk@gmail.com',
+	'19' => array('to'=>'crm_itinfo@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process19 Encountered Error.'),
 );

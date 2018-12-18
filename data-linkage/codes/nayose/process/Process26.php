@@ -7,10 +7,7 @@
  *
  */
 class Process26{
-	private $logger;
-	private $mail;
-	private $db;
-	private $isError = false;
+	private $logger, $mail, $db, $isError = false;
 
 	const WK_T_TABLE = 'wk_t_nayose_kei_result';
 	const WK_BATCH_SYNC_NO_KEY_NAME = 'wk_t_nayose_kei_result_seq_no';
@@ -160,7 +157,7 @@ class Process26{
 			// update records
 			$updateDelFlag = array('delete_flag'=>1);
 			$condition = " batch_sync_seq_no = '".$batchSyncNo."' AND ".self::KEY_2." NOT IN (SELECT ".self::KEY_2." FROM (SELECT MIN(".self::KEY_2.") AS ".self::KEY_2." FROM
-					".self::WK_T_TABLE." GROUP BY ".self::KEY_1.") as kei) OR ".self::KEY_2." IS NULL ";
+					".self::WK_T_TABLE." WHERE batch_sync_seq_no = '".$batchSyncNo."' GROUP BY ".self::KEY_1.") as kei) OR ".self::KEY_2." IS NULL ";
 			$result = $this->db->updateData(self::WK_T_TABLE, $updateDelFlag, $condition, null);
 			// commit
 			$this->db->commit();

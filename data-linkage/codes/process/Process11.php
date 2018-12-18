@@ -10,17 +10,30 @@
  */
 
 class Process11 {
-	private $logger, $db, $validate, $mail, $fieldTitles;
+	private $logger, $db, $rds_db, $validate, $mail, $fieldTitles;
 	private $isError = false;
 
-	const WK_B_TABLE = 'wk_t_tmp_mda_excel';
-	const WK_B_TABLE2 = 't_excel_media_info';
+	const WK_TABLE = 'wk_t_tmp_mda_excel';
+	
+	const T_TABLE1 = 't_media_match_wait';
+	const T_TABLE2 = 't_excel_media_history';
+	const T_TABLE3 = 't_excel_media_info';
+	const T_TABLE4 = 't_media_match_wait_evacuation';
+
+	const M_TABLE1 = 'm_charge';
+	const M_TABLE2 = 'm_media_mass';
+	const M_TABLE3 = 'm_night_job';
+	const M_TABLE4 = 'm_r_type_tell';
+	const M_TABLE5 = 'm_listed_media';
+	const M_TABLE6 = 'm_excel_media_items';
+	
 	const LIMIT = 5000;
 	const OFFSET_LIMIT = 100000;
 
 	const SHELL1 = 'load_wk_t_tmp_MDA_EXCEL.sh';
 	const SHELL2 = 'load_t_excel_media_history.sh';
 	const SHELL3 = 'load_t_media_match_wait.sh';
+	const SHELL4 = 'load_t_media_match_wait_evacuation.sh';
 
 	const OUT_FILE_NAME1 = '11_t_excel_media_history';
 	const OUT_FILE_NAME2 = '11_t_media_match_wait';
@@ -44,22 +57,23 @@ class Process11 {
 		try{
 			//initialize Database
 			$this->db = new Database($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
 
-			$path = getImportPath(true);
+			$path = getImportPath(true, '_11');
 			$files = getMultipleCsv($IMPORT_FILENAME[$procNo], $path);
-
+			
 			//initialize field_title list
 			// フィールドタイトル取得
 			$this->acquireExcelMediaItemsFieldTitle();
 
 			// すでに取り込み済みファイル名取得
-			$media_history_array = $this->db->getData("file_name",'t_excel_media_history','file_name != ? GROUP BY file_name',array('初期データ移行'));
+			$media_history_array = $this->db->getData("file_name",self::T_TABLE2,'file_name != ? GROUP BY file_name',array('初期データ移行'));
 			$media_history_array = array_column($media_history_array, null, 'file_name');
 
 			//initialize night_job.keywords
 			// ナイトJOB取得 1：事業内容、2：職種、3：会社名毎にキーワード取得
 			$this->setNightJobKeywords();
-			$header = getDBField($this->db,self::WK_B_TABLE);
+			$header = getDBField($this->db,self::WK_TABLE);
 			$limit = self::LIMIT;
 			foreach ($files as $fName) {
 				//csvファイルのヘッダー取得
@@ -84,6 +98,8 @@ class Process11 {
 				// すでに取り込み済みか確認 重複していればerrorログを出力
 				if(isset($media_history_array[$file_name])){
 					$this->logger->error("$file_name already exist in [Excel他媒体取込済] table");
+					$this->moveErrorTabaitaiCsv($fName);
+					continue;
 				}
 
 				// エリア名取得
@@ -93,11 +109,12 @@ class Process11 {
 				$offsetCount = 0;
 				//Acquire from: 「./tmp/csv/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_.csv」
 				$this->db->beginTransaction();
+				
 				if(shellExec($this->logger, self::SHELL1, $fName) === 0){
 					$this->db->commit();
 					while ($offsetCount <=self::OFFSET_LIMIT) {
 						$offset = ($limit * $offsetCount);
-						$csvList = $this->db->getLimitOffsetData("*", self::WK_B_TABLE, null, array(), $limit, $offset);
+						$csvList = $this->db->getLimitOffsetData("*", self::WK_TABLE, null, array(), $limit, $offset);
 						if (count($csvList) === 0) {
 							// 配列の値がすべて空の時の処理
 							break;
@@ -140,7 +157,7 @@ class Process11 {
 								if (count($ins_arry) === 0) {
 									// csvデータ作成失敗
 									// 20170502ナイト系のメッセージレベルをErrorからInfoに変更
-									$this->logger->info("Process11 Failed to t_media_match_wait ナイト系 media_code:".$history_arry[0]." ".self::OUT_FILE_NAME2." of " . $file_name);
+									$this->logger->info("Process11 Failed to ".self::T_TABLE1." ナイト系 media_code:".$history_arry[0]." ".self::OUT_FILE_NAME2." of " . $file_name);
 									/* エラーになったときに入力ファイル行カウンターが max_commit_size に達しているか、ファイルの最後の行なら、コミットして次の処理へ */
 									if(($in_file_row_cnt % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($csvList)){
 										$this->db->commit();
@@ -175,12 +192,13 @@ class Process11 {
 								// shell失敗
 								$this->db->rollback();
 								$this->logger->error("Error File : " . $out_file1->getRealPath());
-								throw new Exception("Process11 Failed to insert with " . self::SHELL2 . " to t_excel_media_history");
+								throw new Exception("Process11 Failed to insert with " . self::SHELL2 . " to ".self::T_TABLE2);
 							}
 							unlink($out_file1->getRealPath());	// ファイル削除
 						}
 						if($out_file_row_cnt2 > 0){
 							$this->logger->debug($file_name2." [CSV出力件数（合計） : " . $out_file_row_cnt2." ]");
+							// t_media_match_wait
 							$this->db->beginTransaction();
 							if(shellExec($this->logger, self::SHELL3, $out_file2->getRealPath()) === 0){
 								$this->db->commit();
@@ -188,39 +206,40 @@ class Process11 {
 								// shell失敗
 								$this->db->rollback();
 								$this->logger->error("Error File : " . $out_file2->getRealPath());
-								throw new Exception("Process11 Failed to insertor update with " . self::SHELL3 . " to t_media_match_wait");
+								throw new Exception("Process11 Failed to insertor update with " . self::SHELL3 . " to ".self::T_TABLE1);
+							}
+							// t_media_match_wait_evacuation
+							$this->db->beginTransaction();
+							if(shellExec($this->logger, self::SHELL4, $out_file2->getRealPath()) === 0){
+								$this->db->commit();
+							} else {
+								// shell失敗
+								$this->db->rollback();
+								$this->logger->error("Error File : " . $out_file2->getRealPath());
+								throw new Exception("Process11 Failed to insertor update with " . self::SHELL4 . " to ".self::T_TABLE4);
 							}
 							unlink($out_file2->getRealPath());	// ファイル削除
 						}
+						
 					}
 				} else {
 					// shell失敗
 					$this->db->rollback();
 					$this->logger->error("Error File : " . $fName);
-					throw new Exception("Process11 Failed to insert with " . self::SHELL1 . " to " . self::WK_B_TABLE);
+					throw new Exception("Process11 Failed to insert with " . self::SHELL1 . " to " . self::WK_TABLE);
 				}
 			}
 		} catch (PDOException $e1){ // database error
 			$this->logger->debug("Error found in database.");
-			if($this->db) {
-				if(isset($in_file_row_cnt)){
-					if ($in_file_row_cnt > 0) {
-						$this->db->rollback();
-					}
-				}
-				// close database connection
-				$this->db->disconnect();
-			}
+			$this->disconnect((isset($in_file_row_cnt) && $in_file_row_cnt > 0));
+			
 			$this->mail->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
 			// write down the error contents in the error file
 			$this->logger->debug("Error found in process.");
 			$this->logger->error($e2->getMessage());
-			if($this->db) {
-				// close database connection
-				$this->db->disconnect();
-			}
+			$this->disconnect();
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
 			// and proceed to the next process number (ERR_CODE: 602)
@@ -234,9 +253,20 @@ class Process11 {
 			// send mail if there is error
 			$this->mail->sendMail();
 		}
+		$this->disconnect();
+	}
+
+	private function disconnect($isRollback=false){
 		if($this->db) {
+			if($isRollback){
+				$this->db->rollback();
+			}
 			// close database connection
 			$this->db->disconnect();
+		}
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
 		}
 	}
 
@@ -254,7 +284,7 @@ class Process11 {
 			// 媒体名があるかどうか
 			if(!$this->isNull($data[$media_name])){
 				if($data[$media_name] == "town_work")$data[$media_name] = "TownWork";
-				if($this->db->getDataCount('m_media_mass', 'media_name=?', array($data[$media_name])) > 0){
+				if($this->rds_db->getDataCount(self::M_TABLE2, 'media_name=?', array($data[$media_name])) > 0){
 					$bool = $this->validate->execute($data, $this->fieldsChecking($header,$filename), $row, $filename, $header);
 					$this->logger->info("[$filename] ROW[$row] :$media_name:$data[$media_name]"." exist on [他媒体マスター].");
 				}else{
@@ -267,7 +297,6 @@ class Process11 {
 				$bool = false;
 			}
 		} catch (Exception $e){
-			$this->logger->debug("Failed Checking Contents of Array");
 			throw $e;
 		}
 		return $bool;
@@ -281,7 +310,7 @@ class Process11 {
 	function acquireExcelMediaItemsFieldTitle(){
 		try{
 			$sql  =' SELECT field_title';
-			$sql .=' FROM m_excel_media_items';
+			$sql .=' FROM '.self::M_TABLE6;
 			$sql .=' WHERE delete_flag = 0';
 			$sql .=' ORDER BY CAST(item_code AS DECIMAL)';
 			$rows = $this->db->getDataSql($sql);
@@ -300,7 +329,7 @@ class Process11 {
 	function setNightJobKeywords(){
 		try{
 			for($i = 1; $i <=3; $i++){
-				$rows = $this->db->getData("keyword", "m_night_job", "diff_item_kbn=?", array($i));
+				$rows = $this->db->getData("keyword", self::M_TABLE3, "diff_item_kbn=?", array($i));
 				while($row = array_shift($rows)){
 					$this->{'keywordsKbn'.$i}[] = $row['keyword'];
 				}
@@ -335,7 +364,7 @@ class Process11 {
 	 */
 	function isFilenameExist($filename){
 		if(!$this->isNull($filename)){
-			if($this->db->getDataCount('t_excel_media_history', 'file_name=?', array($filename)) > 0){
+			if($this->db->getDataCount(self::T_TABLE2, 'file_name=?', array($filename)) > 0){
 				$this->logger->error("$filename already exist in [Excel他媒体取込済] table");
 			}
 		}
@@ -355,7 +384,7 @@ class Process11 {
 			$val = array('compe_media_code' => null,'media_type' => null);
 			if(!$this->isNull($media_name)){
 				if($media_name == "town_work")$media_name = "TownWork";
- 				$result = $this->db->getData("compe_media_code, media_type", "m_media_mass", "media_name=?", array($media_name));
+ 				$result = $this->rds_db->getData("compe_media_code, media_type", self::M_TABLE2, "media_name=?", array($media_name));
  				if($result){
  					$val['compe_media_code'] = $result[0]['compe_media_code'];
  					$val['media_type'] = $result[0]['media_type'];
@@ -485,7 +514,7 @@ class Process11 {
 	function getTel($tel){
 		$cnt = 0;
 		if(!$this->isNull($tel)){
-			$cnt = $this->db->getDataCount('m_r_type_tell', ' tel=?', array($tel));
+			$cnt = $this->db->getDataCount(self::M_TABLE4, ' tel=?', array($tel));
 		}
 		return $cnt > 0 ? null : $tel;
 	}
@@ -517,7 +546,7 @@ class Process11 {
 			//(null or blank), substitute the [m_listed_media.listed_name] of the
 			//他媒体上場市場マスター ] and the matched [m_listed_media.listed_code].
 			if($val!=0){
-				$result = $this->db->getData("new_listed_code", "m_listed_media", "listed_code=?", array($val));
+				$result = $this->db->getData("new_listed_code", self::M_TABLE5, "listed_code=?", array($val));
 				$value = $result[0]['listed_name'];
 			}else{
 				$value = $val;
@@ -555,19 +584,19 @@ class Process11 {
 		# $date_time  = $list[3]; # Create_date or Update_date
 
 		try {
-			$dataCount = $this->db->getDataCount(self::WK_B_TABLE2, " no = ? AND file_name = ? ", array( $no, $file_name ));
+			$dataCount = $this->db->getDataCount(self::T_TABLE3, " no = ? AND file_name = ? ", array( $no, $file_name ));
 			if($dataCount <= 0 ){ // Data not found, insert
 				$insertFields = array(
 						'no' => $no,
 						'file_name' => $file_name,
 						'media_code' => $media_code);
-				$result = $this->db->insertData(self::WK_B_TABLE2, $insertFields);
+				$result = $this->db->insertData(self::T_TABLE3, $insertFields);
 			} else { // Data found, update
 				$updateFields = array(
 						'media_code' => $media_code);
-				$result = $this->db->updateData(self::WK_B_TABLE2, $updateFields, " no = ? AND file_name = ? ", array( $no, $file_name ));
+				$result = $this->db->updateData(self::T_TABLE3, $updateFields, " no = ? AND file_name = ? ", array( $no, $file_name ));
 			}
-		}catch(Exception $e){
+		}catch(Exception $e){		
 			$this->logger->error($e->getMessage());
 			throw $e;
 		}
@@ -657,6 +686,7 @@ class Process11 {
 			$data[]	= $val[$header[31]];							//募集雇用形態
 			$data[]	= $val[$header[38]];							//媒体種別詳細
 		}catch(Exception $e){
+			$this->logger->info("regMediaMatchWait");
 			throw $e;
 		}
 		return $data;
@@ -700,15 +730,15 @@ class Process11 {
 	 */
 	function getDataMCharge($media_name, $key_kbn, $num, $area_name){
 		try{
-			$result = $this->db->getData("plan_name,amount", "m_charge", "media_name=? && area=? && kbn=? && number=?", array($media_name, $area_name, $key_kbn, $num));
+			$result = $this->db->getData("plan_name,amount", self::M_TABLE1, "media_name=? && area=? && kbn=? && number=?", array($media_name, $area_name, $key_kbn, $num));
 			// 検索で当てはまらなければエリアを「全エリア」にして再検索
 			if(!isset($result[0])){
 				# index効くように順番変更
-				$result = $this->db->getData("plan_name,amount", "m_charge", "media_name=? && area=? && kbn=? && number=?", array($media_name, "全エリア", $key_kbn, $num));
-				$this->logger->info("m_charge 全エリア再検索。media_name:$media_name 区分:$key_kbn number:$num");
+				$result = $this->db->getData("plan_name,amount", self::M_TABLE1, "media_name=? && area=? && kbn=? && number=?", array($media_name, "全エリア", $key_kbn, $num));
+				$this->logger->info(self::M_TABLE1." 全エリア再検索。media_name:$media_name 区分:$key_kbn number:$num");
 
 			}else{
-				$this->logger->info("m_charge 通常検索。media_name:$media_name 区分:$key_kbn number:$num エリア名:$area_name");
+				$this->logger->info(self::M_TABLE1." 通常検索。media_name:$media_name 区分:$key_kbn number:$num エリア名:$area_name");
 			}
 		}catch(Exception $e){
 			throw $e;
@@ -750,7 +780,7 @@ class Process11 {
 
 		if(empty($space_arry) && empty($flag_count_arry)){
 			// 2017/10/26 ログレベルを修正（ERROR→INFO）
-			$this->logger->info("t_media_match_wait 広告スペース、フラグ数ともにnullのため料金算出なし。media_code:$media_code");
+			$this->logger->info(self::T_TABLE1." 広告スペース、フラグ数ともにnullのため料金算出なし。media_code:$media_code");
 			return array('amount'=>0,'plan'=>null);
 		}
 
@@ -807,6 +837,27 @@ class Process11 {
 		$return_array['post_count']	= $post_count;// 掲載案件数 20160818
 
 		return $return_array;
+	}
+	
+	/**
+	 * エラーファイルを移動
+	 * @param ファイルパス $file_path
+	*/
+	function moveErrorTabaitaiCsv($file_path){
+		// ディレクトリ名
+		$errorDirname = dirname($file_path).'/error';
+		//$this->logger->debug($errorDirname);
+		if(!glob($errorDirname)){
+			// エラーディレクトリ作成
+			if (!mkdir($errorDirname, 0775, true)) {
+				$this->logger->error("エラーディレクトリ作成に失敗しました. folder name：".$errorDirname);
+				throw new Exception("Process11 Failed to create folders. ".$errorDirname);
+			} else {
+				$this->logger->info('renamed error folders '.$errorDirname);
+			}
+		}
+		$res = shell_exec('mv -f '.escapeshellarg($file_path).' '.escapeshellarg($errorDirname));
+		$this->logger->info('moved '.$file_path.' to '.$errorDirname);
 	}
 }
 ?>

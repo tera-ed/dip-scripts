@@ -159,7 +159,7 @@ class Process28{
 			// update records
 			$updateDelFlag = array('delete_flag'=>1);
 			$condition = " batch_sync_seq_no = '".$batchSyncNo."' AND ".self::KEY_3." NOT IN (SELECT ".self::KEY_3." FROM (SELECT MIN(".self::KEY_3.") AS ".self::KEY_3." FROM
-					".self::WK_T_TABLE." GROUP BY ".self::KEY_1.") as kei) OR ".self::KEY_3." IS NULL ";
+					".self::WK_T_TABLE." WHERE batch_sync_seq_no = '".$batchSyncNo."' GROUP BY ".self::KEY_1.") as kei) OR ".self::KEY_3." IS NULL ";
 			$result = $this->db->updateData(self::WK_T_TABLE, $updateDelFlag, $condition, null);
 			// commit
 			$this->db->commit();

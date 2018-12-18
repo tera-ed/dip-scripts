@@ -10,9 +10,10 @@
  */
 class Process14 {
 
-	private $db;
-	private $logger;
-	private $mail;
+	private $db, $rds_db, $logger, $mail, $mediaNameMap;
+
+	const T_TABLE = 't_media_match_wait';
+	const M_TABLE = 'm_media_mass';
 
 	/**
 	 * Process14 constructor
@@ -25,6 +26,8 @@ class Process14 {
 		$this->mail = new Mail();
 		// initialize parameters for query fields and CSV custom header
 		$this->initParam();
+		$this->mediaNameMap = null;
+
 	}
 
 	/**
@@ -40,18 +43,22 @@ class Process14 {
 		//$offsetList = array('0', '100000', '200000', '300000', '400000', '500000', '600000', '700000','800000', '900000', '1000000');
 		$offset = '0';
 		$loopjudge = true;
+		
 		try {
+			// initialize database
+			$this->db = new Database($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
 			
+			$this->reqMediaData();
 			//foreach ($offsetList as $offset){
 			while( $loopjudge ){
 				$this->logger->info("データ取得開始　offset : " . $offset);
-				// initialize database
-				$this->db = new Database($this->logger);
+				
 				// initialize csv util
 				$csvUtils = new CSVUtils($this->logger);
 				// Search for 「他媒体顧客データ」
 				$result = $this->reqData($limit, $offset);
-
+				
 				if ($offset === $firstLoop) {
 					// get csv file name
 					$csvFileName = $csvUtils->generateFilename($EXPORT_FILENAME[$procNo]);
@@ -71,20 +78,54 @@ class Process14 {
 					// create 「他媒体顧客データ」CSV file.
 					$this->generateCSV($csvFileName, $result, $offset);
 				}
-				// close database connection
-				$this->db->disconnect();
-				
 				$offset += $limit;
 			}
+			// t_media_match_wait情報削除対応
+			$this->db->beginTransaction();
+			$deleteData = $this->db->truncateData(self::T_TABLE);
+			if($deleteData){
+				$this->db->commit();
+			} else {
+				$this->db->rollback();
+				throw new Exception("Process14 Failed to truncate table ". self::T_TABLE);
+			}
+		} catch (PDOException $e1) {
+			$this->logger->debug("Error found in database.");
+			$this->disconnect();
+			$this->mail->sendMail();
+			throw $e1;
+		} catch (Exception $e2) {
+			// write down the error contents in the error file
+			$this->logger->debug("Error found in process.");
+			$this->logger->error($e2->getMessage());
+			$this->disconnect();
+			throw $e2;
+		}
+		
+		$this->disconnect();
+	}
+	
+	private function disconnect(){
+		if($this->db) {
 			// close database connection
 			$this->db->disconnect();
+		}
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
+		}
+	}
 
-		} catch (PDOException $e) {
-			$this->mail->sendMail();
-			throw $e;
+	private function reqMediaData() {
+		$this->mediaNameMap = array();
+		try {
+			$media_result = $this->rds_db->getData("compe_media_code,media_name", self::M_TABLE, null, array());
+			foreach($media_result as $key=>$data){
+				$this->mediaNameMap = array_merge($this->mediaNameMap,
+					array($media_result[$key]["compe_media_code"]=>$media_result[$key]["media_name"])
+				);
+			}
 		} catch (Exception $e) {
-			// write down the error contents in the error file
-			$this->logger->error($e->getMessage());
 			throw $e;
 		}
 	}
@@ -96,13 +137,18 @@ class Process14 {
 	 * @return result set
 	 */
 	private function reqData($limit, $offset) {
-
 		try {
-
 			$fields = $this->getParam();
-			$from = "t_media_match_wait a LEFT JOIN m_media_mass b ";
-			$from.= "ON a.compe_media_code = b.compe_media_code";
-			$result = $this->db->getLimitOffsetData($fields, $from, null, array(), $limit, $offset);
+			$result = $this->db->getLimitOffsetData($fields, self::T_TABLE, null, array(), $limit, $offset);
+			
+			foreach($result as $key=>$data){
+				$compe_media_code = $result[$key]["media_name"];
+				$media_name = NULL;
+				if (array_key_exists($compe_media_code, $this->mediaNameMap)) {
+					$media_name = $this->mediaNameMap[$compe_media_code];
+				}
+				$result[$key]["media_name"] = $media_name;
+			}
 		} catch (PDOException $e) {
 			throw $e;
 		} catch (Exception $e) {
@@ -150,33 +196,33 @@ class Process14 {
 	 */
 	private function initParam() {
 		$this->procFields = array(
-				"a.media_code" => "媒体コード",
-				"b.media_name" => "媒体名",
-				"a.post_start_date" => "掲載開始日",
-				"a.business_content" => "事業内容",
-				"a.ad_type" => "職種",
-				"a.corporation_name" => "会社名",
-				"a.zip_code" => "郵便番号",
-				"a.addr_prefe" => "都道府県",
-				"a.address1" => "住所1",
-				"a.address2" => "住所2",
-				"a.address3" => "住所3",
-				"a.tel" => "TEL",
-				"a.section" => "担当部署",
-				"a.corporation_emp_name" => "担当者名",
-				"a.listed_marked" => "上場市場",
-				"a.employee_number" => "従業員数",
-				"a.capital_amount" => "資本金",
-				"a.year_sales" => "売上高",
-				"a.space" => "広告スペース",
-				"a.job_category" => "大カテゴリ",
-				"a.job_class" => "小カテゴリ",
-				"a.post_count" => "掲載案件数",
-				"a.dispatch_flag" => "派遣",
-				"a.introduction_flag" => "紹介",
-				"a.flag_count" => "フラグ数",
-				"a.fax" => "FAX",
-				"a.data_get_date" => "データ取得日",
+				"media_code" => "媒体コード",
+				"compe_media_code as media_name" => "媒体名",
+				"post_start_date" => "掲載開始日",
+				"business_content" => "事業内容",
+				"ad_type" => "職種",
+				"corporation_name" => "会社名",
+				"zip_code" => "郵便番号",
+				"addr_prefe" => "都道府県",
+				"address1" => "住所1",
+				"address2" => "住所2",
+				"address3" => "住所3",
+				"tel" => "TEL",
+				"section" => "担当部署",
+				"corporation_emp_name" => "担当者名",
+				"listed_marked" => "上場市場",
+				"employee_number" => "従業員数",
+				"capital_amount" => "資本金",
+				"year_sales" => "売上高",
+				"space" => "広告スペース",
+				"job_category" => "大カテゴリ",
+				"job_class" => "小カテゴリ",
+				"post_count" => "掲載案件数",
+				"dispatch_flag" => "派遣",
+				"introduction_flag" => "紹介",
+				"flag_count" => "フラグ数",
+				"fax" => "FAX",
+				"data_get_date" => "データ取得日",
 		);
 	}
 }

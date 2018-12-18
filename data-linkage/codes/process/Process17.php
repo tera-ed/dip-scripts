@@ -6,7 +6,10 @@
  *
  */
 class Process17{
+	
 	private $logger, $db, $mail, $isError = false;
+
+	const M_TABLE1 = 'm_corporation';
 
 	/**
 	 * Process17 Class constructor
@@ -21,7 +24,9 @@ class Process17{
 	 */
 	function execProcess(){
 		try{
+			//initialize Database
 			$this->db = new Database($this->logger);
+			
 			$limit = '50000';
 			$offsetList = array('0', '50000', '100000', '150000', '200000', '250000', '300000', '350000','400000', '450000', '500000');
 
@@ -59,7 +64,7 @@ class Process17{
 				// 顧客テーブルから対象となるレコードを取得
 				$this->logger->info("sizeofofficeList : ".sizeof($officeList));
 				if (sizeof($officeList) > 0) {
-					$result = $this->getData("office_id, corporation_attr", "m_corporation", "office_id in (".implode(",",$officeList).")");
+					$result = $this->getData("office_id, corporation_attr", self::M_TABLE1, "office_id in (".implode(",",$officeList).")");
 					$corp_dataList = array_column($result, 'corporation_attr', 'office_id');
 				}else{
 					$this->logger->info("取得件数0件のため終了処理へ");
@@ -79,21 +84,40 @@ class Process17{
 			}
 			$this->logger->info("foreach 終了");
 		}catch (PDOException $e1){
-			if(isset($cntr)){
-				//rollback db transaction
-				$this->db->rollback();
+			if($this->db) {
+				if(isset($cntr)){
+					$this->db->rollback();
+				}
+				// close database connection
+				$this->db->disconnect();
 			}
-			$this->db->disconnect();
 			$this->mail->sendMail();
 			throw $e1;
 		}catch(Exception $e2){
+			// write down the error contents in the error file
+			$this->logger->debug("Error found in process.");
 			$this->logger->error($e2->getMessage());
+			if($this->db) {
+				// close database connection
+				$this->db->disconnect();
+			}
+			// If there are no files:
+			// Skip the process on and after the corresponding process number
+			// and proceed to the next process number (ERR_CODE: 602)
+			// For system error pause process
+			if(602 != $e2->getCode()) {
+				$this->mail->sendMail();
+				throw $e2;
+			}
 		}
 		//send mail if there is error
 		if($this->isError){
 			$this->mail->sendMail();
 		}
-		$this->db->disconnect();
+		if($this->db) {
+			// close database connection
+			$this->db->disconnect();
+		}
 	}
 
 	/**
@@ -217,7 +241,7 @@ class Process17{
 			$corporation_attr = $corp_dataList[$officeId];
 		}else{
 			$this->logger->error("顧客テーブルに [office_id = $officeId] が存在しないので処理を中断します.");
-			throw new Exception("Process17 not exists [office_id = $officeId] in m_corporation");
+			throw new Exception("Process17 not exists [office_id = $officeId] in ".self::M_TABLE1);
 		}
 		//$this->logger->warn($corporationAttr);
 
@@ -227,8 +251,8 @@ class Process17{
 			$condition = "office_id = ?";
 			$params = array($officeId);
 			//update data
-			$result = $this->db->updateData("m_corporation", $updateFields,$condition, $params);
-			if(!$result){
+			$result1 = $this->db->updateData(self::M_TABLE1, $updateFields,$condition, $params);
+			if(!$result1 || !$result2){
 				$this->isError = true;
 				$this->logger->error("Failed to update. [office_id = $officeId]");
 				throw new Exception("Process17 Failed to update. [office_id = $officeId]");

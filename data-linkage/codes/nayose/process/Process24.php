@@ -10,7 +10,7 @@
  */
 
 class Process24 {
-	private $logger, $db, $mail, $SKIP_FLAG;
+	private $logger, $db, $rds_db, $mail, $SKIP_FLAG, $m_table_lbc;
 	private $isError = false;
 
 	const WK_T_TABLE = "wk_t_nayose_crm_result";
@@ -18,10 +18,8 @@ class Process24 {
 
 	const T_TABLE_MEDIA = "t_media_mass";
 	const T_TABLE_NEGO = "t_negotiation";
-	const T_TABLE_UNIFICATION = "t_nayose_unification";
 
 	const M_TABLE_CORP = "m_corporation";
-	const M_TABLE_LBC = "m_lbc";
 
 	const KEY_UNIQUE = 0;
 	const KEY_MULTIPLE = 1;
@@ -45,24 +43,27 @@ class Process24 {
 		global $IMPORT_FILENAME, $procNo;
 
 		try {
-			//Database Initialization
+			// Initialize Database
 			$this->db = new Database($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
+			
+			$this->m_table_lbc = $this->db->setSchema("m_lbc");
+			
+			// true を引数にして nayose_csv/Import/after から取得
+			$path = getImportPath(true);
+			$filename = $IMPORT_FILENAME[$procNo];
+			//Acquisition destination: 「./tmp/csv/nayose/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_CRM_Result_Unique.csv」
+			$fileUnique = getMultipleCsv($filename[self::KEY_UNIQUE], $path, $procNo);
+			//Acquisition destination: 「./tmp/csv/nayose/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_CRM_Result_Multiple.csv」
+			$fileMultiple = getMultipleCsv($filename[self::KEY_MULTIPLE], $path, $procNo);
+			$importFiles = array($fileUnique, $fileMultiple);
 
-				// true を引数にして nayose_csv/Import/after から取得
-				$path = getImportPath(true);
-				$filename = $IMPORT_FILENAME[$procNo];
-				//Acquisition destination: 「./tmp/csv/nayose/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_CRM_Result_Unique.csv」
-				$fileUnique = getMultipleCsv($filename[self::KEY_UNIQUE], $path, $procNo);
-				//Acquisition destination: 「./tmp/csv/nayose/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_CRM_Result_Multiple.csv」
-				$fileMultiple = getMultipleCsv($filename[self::KEY_MULTIPLE], $path, $procNo);
-				$importFiles = array($fileUnique, $fileMultiple);
+			$this->db->beginTransaction();
 
-				$this->db->beginTransaction();
-
-				// Deleting Old Data in wk_xxx_table
-				$deleteData = $this->db->truncateData(self::WK_T_TABLE);
-				$committed = true;
-				if($deleteData){
+			// Deleting Old Data in wk_xxx_table
+			$deleteData = $this->db->truncateData(self::WK_T_TABLE);
+			$committed = true;
+			if($deleteData){
 				// load_data シェルによるファイル取り込み
 				foreach ($importFiles as $importFile){
 					foreach ($importFile as &$file){
@@ -128,20 +129,15 @@ class Process24 {
 
 		} catch (PDOException $e1){
 			$this->logger->debug("Error found in Database.");
-			if($this->db){
-				// Close Database Connection
-				$this->db->disconnect();
-			}
+			// close database connection
+			$this->disconnect();
 			$this->mail->sendMail($e1->getMessage());
 			throw $e1;
-
 		} catch (Exception $e2){
-
 			$this->logger->debug("Error found in Process.");
 			$this->logger->error($e2->getMessage());
-			if($this->db){
-				$this->db->disconnect();
-			}
+			// close database connection
+			$this->disconnect();
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
 			// and proceed to the next process number (ERR_CODE: 602)
@@ -155,11 +151,20 @@ class Process24 {
 			// send mail if there is error
 			$this->mail->sendMail();
 		}
-		if($this->db) {
-			// close database connection
+		// close database connection
+		$this->disconnect();
+	}
+	
+	private function disconnect(){
+		if($this->db){
+			// Close Database Connection
 			$this->db->disconnect();
 		}
-}
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
+		}
+	}
 
 	/*
 	 * ロック顧客はnayose_status=1に更新
@@ -180,29 +185,29 @@ class Process24 {
 				AND tll.lock_status = 1 
 				AND tll.delete_flag = false
 				)"; // lock_status and delete_flag add  20161019 tyamashita
-		$list = $this->db->getDataSql($sql);
-		foreach($list as $row => &$data){
-			if(($counter % $MAX_COMMIT_SIZE) == 0){
-				$this->db->beginTransaction();
-			}
-			$key = array($data["corporation_code"],$data["office_id"]);
-			$update = array("nayose_status" => 1);
-			$dataStatusRes = $this->db->updateData(self::WK_T_TABLE,$update,"corporation_code = ? AND office_id = ?", $key);
-			if($dataStatusRes < 0){
-				$this->logger->error("Failed to Update nayose_status => 1.[corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
-				if($this->SKIP_FLAG == 0){
-					$this->isError = true;
-					throw new Exception("Process24 Failed to update nayose_status => 1. [corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
+			$list = $this->db->getDataSql($sql);
+			foreach($list as $row => &$data){
+				if(($counter % $MAX_COMMIT_SIZE) == 0){
+					$this->db->beginTransaction();
 				}
-			} else {
-				$this->logger->info("Data Updated nayose_status => 1. [corporation_code = ".$data["corporation_code"]."] is locked");
+				$key = array($data["corporation_code"],$data["office_id"]);
+				$update = array("nayose_status" => 1);
+				$dataStatusRes = $this->db->updateData(self::WK_T_TABLE,$update,"corporation_code = ? AND office_id = ?", $key);
+				if($dataStatusRes < 0){
+					$this->logger->error("Failed to Update nayose_status => 1.[corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
+					if($this->SKIP_FLAG == 0){
+						$this->isError = true;
+						throw new Exception("Process24 Failed to update nayose_status => 1. [corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
+					}
+				} else {
+					$this->logger->info("Data Updated nayose_status => 1. [corporation_code = ".$data["corporation_code"]."] is locked");
+				}
+				$counter++;
+				// 最大コミット件数に到達したか、全件処理した場合にコミット
+				if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($list)){
+					$this->db->commit();
+				}
 			}
-			$counter++;
-			// 最大コミット件数に到達したか、全件処理した場合にコミット
-			if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($list)){
-				$this->db->commit();
-			}
-		}
 		} catch(Exception $e){
 			$this->logger->error($sql, $e->getMessage());
 			throw $e;
@@ -230,54 +235,36 @@ class Process24 {
 					WHERE wknc.corporation_code = wklcl.corporation_code
 					AND wknc.office_id = wklcl.office_id
 					)";
-		$list = $this->db->getDataSql($sql);
-		foreach($list as $row => &$data){
-			if(($counter % $MAX_COMMIT_SIZE) == 0){
-				$this->db->beginTransaction();
-			}
-			$tableList = array(
-				"corporation_code"=>$data["corporation_code"],
-				"office_id"=>$data["office_id"],
-				"match_result"=>$data["match_result"],
-				"match_detail"=>$data["match_detail"],
-				"name_approach_code"=>$data["corporation_code"],
-				"name_approach_office_id"=>$data["office_id"],
-				"current_data_flag"=>1,
-				"delete_flag"=>null);
-			$nonExistRes = $this->db->insertData(self::WK_T_TABLE_LINK, $tableList);
-			if(!$nonExistRes){
-				$this->logger->error("Failed to Register [corporation_code : $tableList[corporation_code]] to". self::WK_T_TABLE_LINK);
-				if($this->SKIP_FLAG == 0){
-					$this->isError = true;
-					throw new Exception("Process24 Failed to insert. [corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
+			$list = $this->db->getDataSql($sql);
+			foreach($list as $row => &$data){
+				if(($counter % $MAX_COMMIT_SIZE) == 0){
+					$this->db->beginTransaction();
 				}
-			} else {
-				$this->logger->info("NonExistCombination Data corporation_code : $tableList[corporation_code] office_id : $tableList[office_id] inserted to ". self::WK_T_TABLE_LINK);
-			}
-			// 統合済み顧客に登録されていれば、新しい組み合わせが来たので復活させる
-			$key = array($data["corporation_code"]);
-			$update = array("delete_flag" => TRUE,
-							"update_date" => $currentDate);
-			$changeRes = $this->db->updateData(self::T_TABLE_UNIFICATION,$update,"corporation_code = ? and delete_flag = FALSE ", $key);
-			if($changeRes < 0){
-				$this->logger->error("Failed to t_nayose_unification recovery.[corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
-				if($this->SKIP_FLAG == 0){
-					$this->isError = true;
-					throw new Exception("Process24 Failed to t_nayose_unification recovery. [corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
+				$tableList = array(
+					"corporation_code"=>$data["corporation_code"],
+					"office_id"=>$data["office_id"],
+					"match_result"=>$data["match_result"],
+					"match_detail"=>$data["match_detail"],
+					"name_approach_code"=>$data["corporation_code"],
+					"name_approach_office_id"=>$data["office_id"],
+					"current_data_flag"=>1,
+					"delete_flag"=>null);
+				$nonExistRes = $this->db->insertData(self::WK_T_TABLE_LINK, $tableList);
+				if(!$nonExistRes){
+					$this->logger->error("Failed to Register [corporation_code : $tableList[corporation_code]] to". self::WK_T_TABLE_LINK);
+					if($this->SKIP_FLAG == 0){
+						$this->isError = true;
+						throw new Exception("Process24 Failed to insert. [corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
+					}
+				} else {
+					$this->logger->info("NonExistCombination Data corporation_code : $tableList[corporation_code] office_id : $tableList[office_id] inserted to ". self::WK_T_TABLE_LINK);
 				}
-			} else if($changeRes == 0){
-				// 更新対象無し
-			}else {
-				// 復活成功
-				$this->logger->info("Data Updated t_nayose_unification recovery. [corporation_code = ".$data["corporation_code"]."][office_id = ".$data["office_id"]."]");
+				$counter++;
+				// 最大コミット件数に到達したか、全件処理した場合にコミット
+				if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($list)){
+					$this->db->commit();
+				}
 			}
-			$counter++;
-			// 最大コミット件数に到達したか、全件処理した場合にコミット
-			if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($list)){
-				$this->db->commit();
-			}
-		}
-
 		} catch(Exception $e){
 			$this->logger->error($sql, $e->getMessage());
 			throw $e;
@@ -459,7 +446,7 @@ class Process24 {
 					// wk_t_nayose_crm_resultの中から名寄せ先顧客コードが見つからなかった場合はm_corporation上のデータを確認
 					// wk_t_nayose_crm_resultになく、m_corporation上に存在するようならその顧客コードに名寄せ
 					if(count($name_approach_code) <= 0){
-						$crm_corp_code = $this->db->getData("corporation_code",self::M_TABLE_CORP,"office_id = ? and delete_flag = false", array($data["office_id"]));
+						$crm_corp_code = $this->rds_db->getData("corporation_code",self::M_TABLE_CORP,"office_id = ? and delete_flag = false", array($data["office_id"]));
 						if (count($crm_corp_code) > 0) {
 							$name_approach_code = $crm_corp_code;
 						}
@@ -505,39 +492,6 @@ class Process24 {
 						throw new Exception("Process24 Update Failed on database Table ".self::WK_T_TABLE_LINK);
 					}
 					$this->db->commit();
-				}
-
-				// INSERT the corporation_code (where the nayose information is registered) 
-				// in the  [t_nayose_unification] table
-				// 別顧客に名寄せされた顧客コードを統合済み顧客テーブルに登録
-				//sort($query);
-				foreach($query as $key=>$data){
-					//$dataToInsert = $this->db->getData("corporation_code",self::WK_T_TABLE_LINK,"current_data_flag = 0 AND office_id = ?",array($d["office_id"]));
-					//foreach($dataToInsert as $key=>$data){
-					$this->db->beginTransaction();
-					$unificationId = $this->db->getNextVal('T_NAYOSE_UNIFICATION_ID');
-					// 共通関数の中で登録・更新情報を付加している ここでは付けない
-					$insertData = array(
-						"id"=>$unificationId,
-						"corporation_code"=>$data["corporation_code"]
-					);
-					// 統合情報テーブルへの存在確認
-					$checkData = $this->db->getDataCount(self::T_TABLE_UNIFICATION,"corporation_code = ? AND delete_flag = false",array($data["corporation_code"]));
-					if($checkData > 0){
-						// すでに登録されている場合は登録しない
-						$this->logger->info("NonInsert Data to ".self::T_TABLE_UNIFICATION." -> Corporation_code : ".$query[$key]["corporation_code"]. " Duplicate Data");
-					} else {
-						$result = $this->db->insertData(self::T_TABLE_UNIFICATION,$insertData);
-						if($result < 0){
-							$this->isError = true;
-							$this->logger->error("Failed to Insert Data to ".self::T_TABLE_UNIFICATION." -> Corporation_code : ".$query[$key]["corporation_code"]);
-							throw new Exception("Process24 Failed to Insert Data to ".self::T_TABLE_UNIFICATION." -> Corporation_code : ".$query[$key]["corporation_code"]);
-						} else {
-							$this->logger->info("Data Register Successfully to ".self::T_TABLE_UNIFICATION." -> Corporation_code : ".$query[$key]["corporation_code"]);
-						}
-					}
-					$this->db->commit();
-					//}
 				}
 			}else if(count($query) == 0){ // 空CSVが作られるように処理データ0件の場合はresultを0で返す
 				$result = 0;
@@ -736,7 +690,7 @@ class Process24 {
 				}
 			} else if($process == '1'){// N対1 他媒体数は多いほうが正
 				foreach($list as $key=>$data){
-					$list[$key]["tabaitai_count"] = $this->db->getDataCount(self::T_TABLE_MEDIA, "corporation_code = ? AND delete_flag = false ", array($list[$key]["corporation_code"]));
+					$list[$key]["tabaitai_count"] = $this->rds_db->getDataCount(self::T_TABLE_MEDIA, "corporation_code = ? AND delete_flag = false ", array($list[$key]["corporation_code"]));
 				}
 				// 並び替える列の列方向の配列を得る
 				foreach ($list as $key => $row) {
@@ -814,8 +768,8 @@ class Process24 {
 			} else if($process == '2'){// N対1 商談数は多いほうが正
 				// 商談数の取得
 				foreach($list as $key=>$data){
-					$tabaitai_count = $this->db->getDataCount(self::T_TABLE_MEDIA, "corporation_code = ? AND delete_flag = false ", array($list[$key]["corporation_code"]));
-					$nego_count = $this->db->getDataCount(self::T_TABLE_NEGO,"corporation_code = ? AND record_type IN (70,71,72) AND delete_flag = false", array($list[$key]["corporation_code"]));
+					$tabaitai_count = $this->rds_db->getDataCount(self::T_TABLE_MEDIA, "corporation_code = ? AND delete_flag = false ", array($list[$key]["corporation_code"]));
+					$nego_count = $this->rds_db->getDataCount(self::T_TABLE_NEGO,"corporation_code = ? AND record_type IN (70,71,72) AND delete_flag = false", array($list[$key]["corporation_code"]));
 					$list[$key]["sum_count"] = $tabaitai_count + $nego_count;
 				}
 				// 並び替える列の列方向の配列を得る
@@ -890,7 +844,7 @@ class Process24 {
 				$this->logger->info("N:1 Process2 Done.");
 			} else if($process == '3'){// 顧客の最終更新日付は古いものが正
 				foreach($list as $key=>$data){
-					$updateDate = $this->db->getData("update_date",self::M_TABLE_CORP,"corporation_code = ? AND delete_flag = 0 ", array($list[$key]["corporation_code"]));
+					$updateDate = $this->rds_db->getData("update_date",self::M_TABLE_CORP,"corporation_code = ? AND delete_flag = 0 ", array($list[$key]["corporation_code"]));
 					// 顧客テーブルに存在しない場合はupdate_date取れないので
 					if(sizeof($updateDate) > 0){
 						$list[$key]["update_date"] = $updateDate[0]["update_date"];
@@ -1043,7 +997,7 @@ class Process24 {
 
 				// 2-1 Office_id == top_head_office_id
 				$sameList = $this->db->getData("nayose.corporation_code,nayose.office_id",
-				self::WK_T_TABLE." as nayose INNER JOIN m_lbc ml ON nayose.office_id = ml.office_id ",
+				self::WK_T_TABLE." as nayose INNER JOIN ".$this->m_table_lbc." ml ON nayose.office_id = ml.office_id ",
 				" nayose.corporation_code = ? and nayose.nayose_status is null and ifnull(ml.office_id,'') = ifnull(ml.top_head_office_id,'') ", $params);
 				// 今回のバッチで新規登録されるLBCの場合はm_lbcにまだ無い可能性があるので、p23のwk_t_nayose_lbc_sbndata_outputからも検索
 				if(count($sameList) <= 0){
@@ -1054,7 +1008,7 @@ class Process24 {
 
 				// 2-2 Office_id != top_head_office_id
 				$diffList = $this->db->getData("nayose.corporation_code,nayose.office_id",
-				self::WK_T_TABLE." as nayose INNER JOIN m_lbc ml ON nayose.office_id = ml.office_id ",
+				self::WK_T_TABLE." as nayose INNER JOIN ".$this->m_table_lbc." ml ON nayose.office_id = ml.office_id ",
 				" nayose.corporation_code = ? and nayose.nayose_status is null and ifnull(ml.office_id,'') != ifnull(ml.top_head_office_id,'') ", $params);
 				// 今回のバッチで新規登録されるLBCの場合はm_lbcにまだ無い可能性があるので、p23のwk_t_nayose_lbc_sbndata_outputからも検索
 				if(count($diffList) <= 0){
@@ -1123,7 +1077,7 @@ class Process24 {
 
 				// 4-1 医が付いていないLBCの組み合わせ
 				$nonMedicalList = $this->db->getData("nayose.corporation_code,nayose.office_id",
-				self::WK_T_TABLE." as nayose INNER JOIN m_lbc ml ON nayose.office_id = ml.office_id ",
+				self::WK_T_TABLE." as nayose INNER JOIN ".$this->m_table_lbc." ml ON nayose.office_id = ml.office_id ",
 				" nayose.corporation_code = ? and nayose.nayose_status is null and ml.company_name NOT LIKE '%（医%' ", $searchParams);
 				// 今回のバッチで新規登録されるLBCの場合はm_lbcにまだ無い可能性があるので、p23のwk_t_nayose_lbc_sbndata_outputからも検索
 				if(count($nonMedicalList) <= 0){
@@ -1134,7 +1088,7 @@ class Process24 {
 
 				// 4-2 医のあるLBCの組み合わせ
 				$medicalList = $this->db->getData("nayose.corporation_code,nayose.office_id",
-				self::WK_T_TABLE." as nayose INNER JOIN m_lbc ml ON nayose.office_id = ml.office_id ",
+				self::WK_T_TABLE." as nayose INNER JOIN ".$this->m_table_lbc." ml ON nayose.office_id = ml.office_id ",
 				" nayose.corporation_code = ? and nayose.nayose_status is null and ml.company_name LIKE '%（医%' ", $searchParams);
 				// 今回のバッチで新規登録されるLBCの場合はm_lbcにまだ無い可能性があるので、p23のwk_t_nayose_lbc_sbndata_outputからも検索
 				if(count($medicalList) <= 0){
@@ -1177,7 +1131,7 @@ class Process24 {
 				$likeSql = 
 				"SELECT nayose.corporation_code,nayose.office_id 
 				FROM wk_t_nayose_crm_result nayose 
-				INNER JOIN m_lbc ml ON nayose.office_id = ml.office_id 
+				INNER JOIN ".$this->m_table_lbc." ml ON nayose.office_id = ml.office_id 
 				INNER JOIN m_corporation mc ON  nayose.corporation_code = mc.corporation_code 
 				WHERE nayose.corporation_code = '".$corporation."' 
 				AND nayose.nayose_status is null 
@@ -1204,7 +1158,7 @@ class Process24 {
 				$notLikeSql =
 				"SELECT nayose.corporation_code,nayose.office_id 
 				FROM wk_t_nayose_crm_result nayose 
-				INNER JOIN m_lbc ml ON nayose.office_id = ml.office_id 
+				INNER JOIN ".$this->m_table_lbc." ml ON nayose.office_id = ml.office_id 
 				INNER JOIN m_corporation mc ON  nayose.corporation_code = mc.corporation_code 
 				WHERE nayose.corporation_code = '".$corporation."' 
 				AND nayose.nayose_status is null 

@@ -1,6 +1,6 @@
 <?php
 class Process33{
-	private $logger, $db, $validate, $mail, $SKIP_FLAG;
+	private $logger, $db, $crm_db, $rds_db, $validate, $mail, $SKIP_FLAG;
 	private $SYSTEM_USER = null;
 	
 	const M_CORPORATION_EMP         = 'm_corporation_emp';
@@ -27,7 +27,11 @@ class Process33{
 	 * Execute Process 33
 	 */
 	function execProcess(){
+		//initialize Database
 		$this->db = new Database($this->logger);
+		$this->crm_db = new CRMDatabase($this->logger);
+		$this->rds_db = new RDSDatabase($this->logger);
+		
 		$result = $this->getAllData();
 		$this->isError = false;
 		
@@ -52,18 +56,23 @@ class Process33{
 					else {
 						foreach($data as $i => $datum){
 							$this->db->beginTransaction();
+							$this->crm_db->beginTransaction();
+							
 							$result = $this->deleteData($corporation_code, $corporation_emp_name,$email,$datum['update_date'],$datum['corporation_emp_code']);
 							if($result < 0){
 								$this->isError = true;
 								$this->logger->error(self::E_MSG_001.".[corporation_code = ".$corporation_code."][corporation_emp_name = ".$corporation_emp_name."]");
 								if($this->SKIP_FLAG == 0){
 									$this->db->rollback();
+									$this->crm_db->rollback();
+									
 									throw new Exception("Process33 Failed to update. [corporation_code = ".$corporation_code."][corporation_emp_name = ".$corporation_emp_name."]");
 								}
 							}else{
 								$this->logger->info("Duplicate data deleted. [corporation_code = ".$corporation_code."][corporation_emp_name = ".$corporation_emp_name."] deleted from ".self::M_CORPORATION_EMP);
 							}
 							$this->db->commit();
+							$this->crm_db->commit();
 						}
 					}
 				}
@@ -71,18 +80,13 @@ class Process33{
 		} catch (PDOException $e1){
 			$this->logger->debug("Error found in Database.");
 			$this->logger->error($e1->getMessage());
-			if($this->db){
-				// Close Database Connection
-				$this->db->disconnect();
-			}
+			$this->disconnect();
 			$this->mail->sendMail($e1->getMessage());
 			throw $e1;
 		} catch (Exception $e2){
 			$this->logger->debug("Error found in Process.");
 			//$this->logger->error($e2->getMessage());
-			if($this->db){
-				$this->db->disconnect();
-			}
+			$this->disconnect();
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
 			// and proceed to the next process number (ERR_CODE: 602)
@@ -96,9 +100,22 @@ class Process33{
 			// send mail if there is error
 			$this->mail->sendMail();
 		}
-		if($this->db) {
-			// close database connection
+		// close database connection
+		$this->disconnect();
+	}
+	
+	/**
+	 * Close Database Connection
+	 */
+	private function disconnect(){
+		if($this->db){
 			$this->db->disconnect();
+		}
+		if($this->crm_db){
+			$this->crm_db->disconnect();
+		}
+		if($this->rds_db) {
+			$this->rds_db->disconnect();
 		}
 	}
 	
@@ -109,7 +126,7 @@ class Process33{
 			 . " WHERE delete_flag = false "
 			 . " GROUP BY corporation_code, corporation_emp_name, email " 
 			 . " HAVING COUNT(0) > 1 ";
-		return $this->db->getDataSql($sql);
+		return $this->rds_db->getDataSql($sql);
 	}
 	
 	// 顧客コードと顧客担当者名全文とＥＭＡＩＬを条件に、その顧客担当者の最終更新日付を取得
@@ -123,7 +140,7 @@ class Process33{
 			 . " ORDER BY update_date DESC, corporation_emp_code ASC " 
 			 . " LIMIT 1";
 		$params = array($corporation_code, $corporation_emp_name, $email);
-		return $this->db->getDataSql($sql, $params);
+		return $this->rds_db->getDataSql($sql, $params);
 	}
 	// 同じ名前とＥメールと顧客についている担当者の中で更新日が新しいもの以外のレコードを論理削除
 	function deleteData($corporation_code, $corporation_emp_name, $email, $update_date, $corporation_emp_code){
@@ -135,7 +152,14 @@ class Process33{
 			 . " AND corporation_emp_code != ? ";
 		$params = array($corporation_code, $corporation_emp_name, $email, $update_date, $corporation_emp_code);
 		$update = array("delete_flag"=>1,"update_date"=>"NOW()");
-		return $this->db->updateData(self::M_CORPORATION_EMP,$update,$sql,$params);
+
+		$result1 = $this->db->updateData(self::M_CORPORATION_EMP,$update,$sql,$params);
+		$result2 = $this->crm_db->updateData(self::M_CORPORATION_EMP,$update,$sql,$params);
+		if ($result1 || $result2){
+			return True;
+		} else {
+			return False;
+		}
 	}
 }
 ?>

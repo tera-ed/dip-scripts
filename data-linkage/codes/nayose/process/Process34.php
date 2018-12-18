@@ -1,6 +1,6 @@
 <?php
 class Process34{
-	private $logger, $db, $validate, $mail, $SKIP_FLAG;
+	private $logger, $db, $crm_db, $rds_db, $validate, $mail, $SKIP_FLAG;
 	private $SYSTEM_USER = null;
 	
 	const M_SALES_LINK              = 'm_sales_link';
@@ -27,7 +27,11 @@ class Process34{
 	 * Execute Process 34
 	 */
 	function execProcess(){
+		//initialize Database
 		$this->db = new Database($this->logger);
+		$this->crm_db = new CRMDatabase($this->logger);
+		$this->rds_db = new RDSDatabase($this->logger);
+		
 		$result = $this->getAllData();
 		$this->isError = false;
 		
@@ -52,18 +56,23 @@ class Process34{
 					else {
 						foreach($data as $i => $datum){
 							$this->db->beginTransaction();
+							$this->crm_db->beginTransaction();
+							
 							$result = $this->deleteData($member_code, $corporation_code, $datum['update_date'], $datum['id']);
 							if($result < 0){
 								$this->isError = true;
 								$this->logger->error(self::E_MSG_001.".[corporation_code = ".$corporation_code."][member_code = ".$member_code."]");
 								if($this->SKIP_FLAG == 0){
 									$this->db->rollback();
+									$this->crm_db->rollback();
+									
 									throw new Exception("Process34 Failed to update. [corporation_code = ".$corporation_code."][member_code = ".$member_code."]");
 								}
 							} else {
 								$this->logger->info("Duplicate data deleted. [corporation_code = ".$corporation_code."][member_code = ".$member_code."] deleted from ".self::M_SALES_LINK);
 							}
 							$this->db->commit();
+							$this->crm_db->commit();
 						}
 					}
 				}
@@ -71,19 +80,16 @@ class Process34{
 		} catch (PDOException $e1){
 			$this->logger->debug("Error found in Database.");
 			$this->logger->error($e1->getMessage());
-			if($this->db){
-				// Close Database Connection
-				$this->db->disconnect();
-			}
+			// close database connection
+			$this->disconnect();
 			$this->mail->sendMail($e1->getMessage());
 			throw $e1;
 
 		} catch (Exception $e2){
 			$this->logger->debug("Error found in Process.");
 			//$this->logger->error($e2->getMessage());
-			if($this->db){
-				$this->db->disconnect();
-			}
+			// close database connection
+			$this->disconnect();
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
 			// and proceed to the next process number (ERR_CODE: 602)
@@ -98,9 +104,22 @@ class Process34{
 			$this->mail->sendMail();
 		}
 
-		if($this->db) {
-			// close database connection
+		// close database connection
+		$this->disconnect();
+	}
+
+	/**
+	 * Close Database Connection
+	 */
+	private function disconnect(){
+		if($this->db){
 			$this->db->disconnect();
+		}
+		if($this->crm_db){
+			$this->crm_db->disconnect();
+		}
+		if($this->rds_db) {
+			$this->rds_db->disconnect();
 		}
 	}
 
@@ -115,7 +134,7 @@ class Process34{
 			 . "     GROUP BY member_code, corporation_code " 
 			 . "     HAVING COUNT(0) > 1) "
 			 . " GROUP BY member_code, corporation_code";
-		return $this->db->getDataSql($sql);
+		return $this->rds_db->getDataSql($sql);
 	}
 	
 	// 更新日が一番新しいレコードのidを取得
@@ -128,7 +147,7 @@ class Process34{
 			 . " ORDER BY update_date DESC, CAST(id AS UNSIGNED) ASC " 
 			 . " LIMIT 1";
 		$params = array($member_code, $corporation_code);
-		return $this->db->getDataSql($sql, $params);
+		return $this->rds_db->getDataSql($sql, $params);
 	}
 	
 	function deleteData($member_code, $corporation_code, $update_date, $id){
@@ -139,7 +158,14 @@ class Process34{
 			 . " AND id != ? ";
 		$params = array($member_code, $corporation_code, $update_date, $id);
 		$update = array("delete_flag"=>1);
-		return $this->db->updateData(self::M_SALES_LINK, $update, $sql, $params);
+		
+		$result1 = $this->db->updateData(self::M_SALES_LINK, $update, $sql, $params);
+		$result2 = $this->crm_db->updateData(self::M_SALES_LINK, $update, $sql, $params);
+		if ($result1 || $result2){
+			return True;
+		} else {
+			return False;
+		}
 	}
 }
 ?>

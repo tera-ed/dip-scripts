@@ -8,7 +8,7 @@
  *
  */
 class Process4{
-	private $logger, $db, $mail, $validate;
+	private $logger, $db, $crm_db, $rds_db, $recolin_db, $mail, $validate;
 	private $isError = false;
 
 	const TABLE_1 = 'm_lbc';
@@ -41,8 +41,12 @@ class Process4{
 		global $IMPORT_FILENAME, $procNo;
 		$currentRowSize = 0;
 		try{
+			//initialize Database
 			$this->db = new Database($this->logger);
-
+			$this->crm_db = new CRMDatabase($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
+			$this->recolin_db = new RecolinDatabase($this->logger);
+			
 			$path = getImportPath(true);
 			$filename = $IMPORT_FILENAME[$procNo];
 			// $path(import_after)内の名称に$filenameを含むファイル群取得
@@ -83,6 +87,24 @@ class Process4{
 				// close database connection
 				$this->db->disconnect();
 			}
+			if($this->crm_db) {
+				if(isset($cntr)){
+					$this->crm_db->rollback();
+				}
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
+			if($this->recolin_db) {
+				if(isset($cntr)){
+					$this->recolin_db->rollback();
+				}
+				// close database connection
+				$this->recolin_db->disconnect();
+			}
 			$this->mail->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
@@ -92,6 +114,18 @@ class Process4{
 			if($this->db) {
 				// close database connection
 				$this->db->disconnect();
+			}
+			if($this->crm_db) {
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
+			if($this->recolin_db) {
+				// close database connection
+				$this->recolin_db->disconnect();
 			}
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
@@ -109,6 +143,18 @@ class Process4{
 		if($this->db) {
 			// close database connection
 			$this->db->disconnect();
+		}
+		if($this->crm_db) {
+			// close database connection
+			$this->crm_db->disconnect();
+		}
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
+		}
+		if($this->recolin_db) {
+			// close database connection
+			$this->recolin_db->disconnect();
 		}
 	}
 
@@ -155,6 +201,8 @@ class Process4{
 			foreach ($dataInsert as $row => $data){
 				if(($cntr % $MAX_COMMIT_SIZE) == 0){
 					$this->db->beginTransaction();
+					$this->crm_db->beginTransaction();
+					$this->recolin_db->beginTransaction();
 				}
 				// check data if there are errors
 				$tableData = $data;
@@ -164,9 +212,9 @@ class Process4{
 					// Search item 「OLD_LBC」 from 「m_lbc.office_id」
 					$this->logger->info("Search item 「OLD_LBC」 from 「m_lbc.office_id」");
 					$result1 = true;
-					$recordCount1 = $this->db->getDataCount(self::TABLE_1, self::KEY."=?", $key);
+					$recordCount1 = $this->recolin_db->getDataCount(self::TABLE_1, self::KEY."=?", $key);
 					if($recordCount1 > 0){// if search result != 0, delete the search record
-						$result1 = $this->db->updateData(self::TABLE_1, array("delete_flag"=>true), self::KEY."=?", $key);
+						$result1 = $this->recolin_db->updateData(self::TABLE_1, array("delete_flag"=>true), self::KEY."=?", $key);
 						if(!$result1){
 							$this->logger->error("Failed to update delete_flag of row with $OLD_LBC_officeIdHeader: $tableData[$OLD_LBC_officeIdHeader] to ". self::TABLE_1);
 							# 2016/09/08 四半期処理のために処理中断をスキップに
@@ -179,15 +227,15 @@ class Process4{
 					}
 
 					// Search item 「OLD_LBC」 from 「m_corporation.office_id」
-					$this->logger->info("Search item 「OLD_LBC」 from 「m_corporation.office_id」");
+					$this->logger->info("Search item 「OLD_LBC」 from 「".self::TABLE_2.".".self::KEY."」");
 					$result2 = true;
-					$recordCount2 = $this->db->getDataCount(self::TABLE_2, self::KEY."=?", $key);
+					$recordCount2 = $this->rds_db->getDataCount(self::TABLE_2, self::KEY."=?", $key);
 					// ロック顧客かどうか office_id で確認 20161004lock_add
 					$lockCount = $this->db->getDataCount(self::LOCK_TABLE_1." lo inner join ".self::TABLE_2." mc on lo.corporation_code = mc.corporation_code ",
 					 "mc.".self::KEY."=? and lo.lock_status = 1 and lo.delete_flag = false", $key);
 					// 顧客が存在して、かつまだロックされていない顧客は更新 20161004lock_add
 					if($recordCount2 > 0 && $lockCount <= 0){
-						$mLbcRecord = $this->db->getData("*", self::TABLE_1, self::KEY."=?", array($tableData[$NEW_LBC_officeIdHeader]));
+						$mLbcRecord = $this->recolin_db->getData("*", self::TABLE_1, self::KEY."=?", array($tableData[$NEW_LBC_officeIdHeader]));
 						if(!empty($mLbcRecord)){
 							//prepare the update fields
 							$tableList = emptyToNull($mLbcRecord);
@@ -195,8 +243,9 @@ class Process4{
 							$newTableList = $this->insertDefaultValue($tableList);
 							// Update the 「office_id」 of the searched record with the item: 「NEW_LBC」
 							$newTableList[self::KEY] = $tableData[$NEW_LBC_officeIdHeader];
-							$result2 = $this->db->updateData(self::TABLE_2, $newTableList, self::KEY."=?", $key);
-							if(!$result2){
+							$result2_1 = $this->db->updateData(self::TABLE_2, $newTableList, self::KEY."=?", $key);
+							$result2_2 = $this->crm_db->updateData(self::TABLE_2, $newTableList, self::KEY."=?", $key);
+							if(!$result2_1){
 								$this->logger->error("Failed to update [$NEW_LBC_officeIdHeader = $key]");
 								# 2016/09/08 四半期処理のために処理中断をスキップに
 								#throw new Exception("Process4 Failed to update [$OLD_LBC_officeIdHeader = $key]");
@@ -261,6 +310,8 @@ class Process4{
 				}
 				if(($cntr % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($dataInsert)){
 					$this->db->commit();
+					$this->crm_db->commit();
+					$this->recolin_db->commit();
 				}
 			}
 		} catch( Exception $e) {

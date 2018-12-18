@@ -6,10 +6,7 @@
  *
  */
 class Process6 {
-
-	private $db;
-	private $logger;
-	private $mail;
+	private $logger, $db, $crm_db, $rds_db, $recolin_db, $mail;
 	private $isError = false;
 
 	const TABLE_1 = 'm_lbc';
@@ -54,9 +51,12 @@ class Process6 {
 	public function execProcess() {
 		global $IMPORT_FILENAME, $procNo;
 		try {
-
-			// instantiate database
+			//initialize Database
 			$this->db = new Database($this->logger);
+			$this->crm_db = new CRMDatabase($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
+			$this->recolin_db = new RecolinDatabase($this->logger);
+			
 			// get import path
 			$path = getImportPath(true);
 			$resultFiles = getMultipleCsv($IMPORT_FILENAME[$procNo][0], $path);
@@ -109,6 +109,24 @@ class Process6 {
 				// close database connection
 				$this->db->disconnect();
 			}
+			if($this->crm_db) {
+				if(isset($cntr)){
+					$this->crm_db->rollback();
+				}
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
+			if($this->recolin_db) {
+				if(isset($cntr)){
+					$this->recolin_db->rollback();
+				}
+				// close database connection
+				$this->recolin_db->disconnect();
+			}
 			$this->mail->sendMail();
 			throw $e1;
 		} catch(Exception $e2) { // error
@@ -118,6 +136,18 @@ class Process6 {
 			if($this->db) {
 				// close database connection
 				$this->db->disconnect();
+			}
+			if($this->crm_db) {
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
+			if($this->recolin_db) {
+				// close database connection
+				$this->recolin_db->disconnect();
 			}
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
@@ -136,6 +166,18 @@ class Process6 {
 			// close database connection
 			$this->db->disconnect();
 		}
+		if($this->crm_db) {
+			// close database connection
+			$this->crm_db->disconnect();
+		}
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
+		}
+		if($this->recolin_db) {
+			// close database connection
+			$this->recolin_db->disconnect();
+		}
 	}
 
 	/**
@@ -147,7 +189,7 @@ class Process6 {
 	 * @return number
 	 */
 	private function processData($data, $csvFile, $csvHeader) {
-		global $MAX_COMMIT_SIZE;
+		global $MAX_COMMIT_SIZE,$SYSTEM_USER;
 		$cntr = 0;
 		$pKey1	= self::KEY_1;
 		$pKey2	= self::KEY_2;
@@ -157,6 +199,8 @@ class Process6 {
 				if(($cntr % $MAX_COMMIT_SIZE) == 0){
 					//begin transaction
 					$this->db->beginTransaction();
+					$this->crm_db->beginTransaction();
+					$this->recolin_db->beginTransaction();
 				}
 				// replace empty string to null
 				$lblParam = emptyToNull($col);
@@ -179,8 +223,15 @@ class Process6 {
 					// Move the process to the next record
 					$this->logger->error("Error found in data [$pKey1 = $officeId]");
 				} else {
+					$recordCount1 = $this->recolin_db->getDataCount(self::TABLE_1, $pKey1."=?", $officeId);
+					if($recordCount1 > 0){// if search result != 0, delete the search record
+						$currentDate = date("Y/m/d H:i:s");
+						$lblParam["update_date"] = $currentDate;
+						$lblParam["update_user_code"] = $SYSTEM_USER;
+					}
+				
 					// If all fields are valid and
-					$result1 = $this->db->insertUpdateData(self::TABLE_1, $lblParam, $pKey1);
+					$result1 = $this->recolin_db->insertUpdateData(self::TABLE_1, $lblParam, $pKey1);
 					if($result1) {
 						$count = $this->db->getDataCount(self::WK_B_TABLE1, $pKey1."=?", array($officeId));
 						if($count > 0) {
@@ -189,17 +240,18 @@ class Process6 {
 							$tableList = emptyToNull($crm_esultRecord);
 							$corporation_code = $tableList[0][$pKey2];
 							// 顧客テーブルに存在するか確認
-							$corporationCount = $this->db->getDataCount(self::TABLE_2, $pKey2."=?", array($corporation_code));
+							$corporationCount = $this->rds_db->getDataCount(self::TABLE_2, $pKey2."=?", array($corporation_code));
 							// ロック顧客かどうか corporation_code で確認 20161004lock_add
-							$lockCount = $this->db->getDataCount(self::LOCK_TABLE_1, $pKey2."=? and lock_status = 1 and delete_flag = false", array($corporation_code));
+							$lockCount = $this->rds_db->getDataCount(self::LOCK_TABLE_1, $pKey2."=? and lock_status = 1 and delete_flag = false", array($corporation_code));
 							// 顧客が存在して、かつまだロックされていない顧客はm_corporationのoffice_idを更新 20161004lock_add
 							if($corporationCount > 0 && $lockCount <= 0) {
 								// If search results are not 0件 (0 records),
 								// update record on m_corporation
 								$updateFields = array();
 								$updateFields[$pKey1] = $officeId;
-								$result2 = $this->db->updateData(self::TABLE_2, $updateFields, $pKey2."=?", array($corporation_code));
-								if(!$result2){
+								$result2_1 = $this->crm_db->updateData(self::TABLE_2, $updateFields, $pKey2."=?", array($corporation_code));
+								$result2_2 = $this->db->updateData(self::TABLE_2, $updateFields, $pKey2."=?", array($corporation_code));
+								if(!$result2_1){
 									$tbl =  self::TABLE_2;
 									$this->isError = true;
 									$this->logger->error("Failed to register ROW[$row] : [$pKey2 = $corporation_code] to $tbl");
@@ -219,11 +271,12 @@ class Process6 {
 							}
 						} else {
 							// 処理中のoffice_idがまだ存在しない場合は顧客テーブルへ登録
-							$count = $this->db->getDataCount(self::TABLE_2, $pKey1."=?", array($officeId));
+							$count = $this->rds_db->getDataCount(self::TABLE_2, $pKey1."=?", array($officeId));
 							if($count == 0) {
 								$dataParam = $this->setInsertParams($corParam);
-								$result2 = $this->db->insertData(self::TABLE_2, $dataParam);
-								if(!$result2){
+								$result2_1 = $this->crm_db->insertData(self::TABLE_2, $dataParam);
+								$result2_2 = $this->db->insertData(self::TABLE_2, $dataParam);
+								if(!$result2_1){
 									$tbl =  self::TABLE_2;
 									$this->isError = true;
 									$this->logger->error("Failed to register ROW[$row] : [$pKey1 = $officeId] to $tbl");
@@ -232,7 +285,7 @@ class Process6 {
 								// office_idを使った新規登録分のレコードは、まだ名寄せ情報テーブルに無いはずなので、新規登録
 								// pkey1 -> office_id,  table2 -> m_corporation
 								// office_idで顧客コードを検索して、その組み合わせをwk_t_lbc_crm_linkに新規登録
-								$newCorp = $this->db->getData("corporation_code",self::TABLE_2, $pKey1."=?", array($officeId));
+								$newCorp = $this->rds_db->getData("corporation_code",self::TABLE_2, $pKey1."=?", array($officeId));
 								$currentDate = date("Y/m/d H:i:s");
 								$insertData = array(
 									"corporation_code"=>$newCorp[0]["corporation_code"],
@@ -274,6 +327,8 @@ class Process6 {
 				//commit according to set max commit size on config file
 				if(($cntr % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($data)){
 					$this->db->commit();
+					$this->crm_db->commit();
+					$this->recolin_db->commit();
 				}
 			}
 		} catch (Exception $e) {
@@ -310,7 +365,7 @@ class Process6 {
 	 * Set parameters for insert validation
 	 */
 	private function setInsertParams($data) {
-		$corId = $this->db->getNextVal('M_CORPORATION_CODE');
+		$corId = $this->crm_db->getNextVal('M_CORPORATION_CODE');
 		$data['corporation_code'] = $corId;
 		$data['head_bulk_flag'] = false;
 		$data['orders_ban_flag'] = false;

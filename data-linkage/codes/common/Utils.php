@@ -2,9 +2,11 @@
 require_once('common/Logger.php');
 require_once('common/Mail.php');
 require_once('common/Database.php');
+require_once('common/RecolinDatabase.php');
+require_once('common/CRMDatabase.php');
+require_once('common/RDSDatabase.php');
 require_once('common/CSVUtils.php');
 require_once('common/Validation.php');
-
 $procNo = 0;
 
 /**
@@ -146,7 +148,6 @@ function getCsvHeader($filename){
 	}
 	return $header;
 }
-
 /**
  * returns the import path (before/after)
  * @param $isAfter true if after otherwise false
@@ -234,6 +235,5 @@ function getDBField($db,$db_name){
 	}
 	return $header;
 }
-
 
 ?>

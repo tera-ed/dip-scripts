@@ -16,7 +16,6 @@ class Process1{
 
 		foreach ($data as $key => $dmy){
 			foreach($dmy as $val){
-
 				// obicファイルのみ2つ存在するため
 				if(is_array($IMPORT_FILENAME[$val])){
 					foreach($IMPORT_FILENAME[$val] as $name){
@@ -44,6 +43,8 @@ class Process1{
 					$file_num+=count(glob($dir));
 					$data_num++;
 				}
+				
+				$this->logger->info($dir);
 			}
 		}
 

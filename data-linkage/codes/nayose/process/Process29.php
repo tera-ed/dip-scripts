@@ -8,7 +8,6 @@
  */
 class Process29{
 	private $logger, $mail;
-	const FILE_CSV_TXT = 'csv/txt';
 
 	/**
 	 * Process29 Class constructor
@@ -32,10 +31,7 @@ class Process29{
 				while (false !== ($filename = readdir($dh))) {
 					if ($filename != "." && $filename != "..") {
 						$noFiles = false;
-						$fileType = $this->getFileType($filename);
-						if(self::FILE_CSV_TXT === $fileType){
-							$this->convFileEncoding($filename);
-						}
+						$this->convFileEncoding($filename);
 					}
 				}
 			}
@@ -50,24 +46,6 @@ class Process29{
 			$this->mail->sendMail($e->getMessage());
 			throw $e;
 		}
-	}
-
-	/**
-	 * returns file type
-	 * @param string $filename
-	 * @return string filetype
-	 */
-	function getFileType($filename){
-		$fileType = 0;
-		try{
-			$file_ext = pathinfo($filename, PATHINFO_EXTENSION);
-			if(in_array($file_ext, array('csv','txt'))){
-				$fileType = self::FILE_CSV_TXT;
-			}
-		}catch(Exception $e){
-			throw $e;
-		}
-		return $fileType;
 	}
 
 	/**
@@ -92,23 +70,25 @@ class Process29{
 			system('nkf -g '.escapeshellarg($path_before).escapeshellarg($filename),$returnEncode);
 			// 改行コード除去して取得
 			$str = str_replace(array("\r\n", "\r", "\n"), '', ob_get_contents());
-			//$this->logger->debug($filename.' file Character code is ' . $str);
+			$this->logger->debug($filename.' file Character code is ' . $str);
 			ob_end_clean();
 			// 想定内の文字コードかエラーチェック
-			if($str == "UTF-8" || $str == "ASCII"){
+			//if($str == "UTF-8" || $str == "ASCII"){
+			if (preg_match('/^UTF-8/', $str) || preg_match('/^ASCII/', $str)) {
 				// Character code conversion utf-8 -> sjis
 				system('nkf --cp932 -sLw -x '.escapeshellarg($path_before).escapeshellarg($filename).' > '.escapeshellarg($path_after).escapeshellarg($filename) ,$return);
 			}else{
-				throw new Exception("Process29 Character code invalid [".$str."] file name ：.".$filename);
+				throw new Exception("Process29 Character code invalid [".$str."] file name ：".$filename);
 			}
 
 			if($return == 1){ // failed
 				$this->logger->error("文字コード変換に失敗しました. file name ：.".$filename);
-				throw new Exception("Process29 Character code conversion failed file name ：.".$filename);
+				throw new Exception("Process29 Character code conversion failed file name ：".$filename);
 			}else{
-				$this->logger->info("utf-8 -> sjis 文字コード変換に成功しました. file name ：.".$filename);
+				$this->logger->info("utf-8 -> sjis 文字コード変換に成功しました. file name ：".$filename);
 			}
 		} catch (Exception $e){
+			$this->logger->error($e->getMessage());
 			throw $e;
 		}
 		$this->logger->debug('ends writing file ' . $filename);

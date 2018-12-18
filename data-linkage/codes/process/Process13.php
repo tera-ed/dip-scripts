@@ -10,9 +10,7 @@
  */
 class Process13 {
 
-	private $db;
-	private $logger;
-	private $mail;
+	private $rds_db, $logger, $mail;
 
 	/**
 	 * Process13 constructor
@@ -35,7 +33,7 @@ class Process13 {
 	public function execProcess() {
 		try {
 			// initialize database
-			$this->db = new Database($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
 			// request data for 「CRM顧客差分データ」.
 			$result = $this->reqData();
 
@@ -52,14 +50,24 @@ class Process13 {
 			}
 		} catch (PDOException $e) {
 			$this->mail->sendMail();
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
 			throw $e;
 		} catch(Exception $e) {
 			// write down the error contents in the error file
 			$this->logger->error($e->getMessage());
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
 			throw $e;
 		}
-		// close database connection
-		$this->db->disconnect();
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
+		}
 	}
 
 	/**
@@ -77,7 +85,7 @@ class Process13 {
 			$from.= "ON a.business_type = b.industry_code ";
 			// 2017/10/19 抽出条件に「顧客情報未削除」を追加
 			$condition = "a.delete_flag = FALSE && (a.office_id = ? || a.office_id IS NULL)";
-			$result = $this->db->getData($fields, $from, $condition, array(''));
+			$result = $this->rds_db->getData($fields, $from, $condition, array(''));
 		} catch (PDOException $e) {
 			throw $e;
 		} catch (Exception $e) {

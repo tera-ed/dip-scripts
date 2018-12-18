@@ -10,9 +10,7 @@
  */
 class Process12 {
 
-	private $db;
-	private $logger;
-	private $mail;
+	private $db, $logger, $mail;
 
 	const OBC_KEI = 0; // 契約先情報
 	const OBC_SEI = 1; // 請求先情報
@@ -62,15 +60,24 @@ class Process12 {
 			}
 		} catch (PDOException $e) {
 			$this->mail->sendMail();
+			if($this->db) {
+				// close database connection
+				$this->db->disconnect();
+			}
 			throw $e;
 		} catch (Exception $e) {
 			// write down the error contents in the error file
 			$this->logger->error($e->getMessage());
+			if($this->db) {
+				// close database connection
+				$this->db->disconnect();
+			}
 			throw $e;
 		}
-		
-		// close database connection
-		$this->db->disconnect();
+		if($this->db) {
+			// close database connection
+			$this->db->disconnect();
+		}
 	}
 
 	/**
@@ -91,6 +98,7 @@ class Process12 {
 			$sql = "SELECT $fields FROM $from";
 			$sql.= "ON a.customer_code = b.contract_code ";
 			$sql.= "WHERE $condition GROUP BY contract_code";
+			
 			$result[] = $this->db->getDataSql($sql, array('%00',''));
 
 			// search for 「OBIC請求取引先データ」

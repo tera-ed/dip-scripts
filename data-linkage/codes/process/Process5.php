@@ -8,11 +8,10 @@
  *
  */
 class Process5{
-	private $logger, $db, $mail, $validate;
+	private $logger, $db, $crm_db, $rds_db, $mail, $validate;
 	private $isError = false;
 
 	const TABLE_1 = 'm_corporation';
-	const TABLE_2 = 'm_lbc';
 	const LOCK_TABLE_1 = 't_lock_lbc_link';
 
 	const KEY_1 = 'office_id';
@@ -39,7 +38,10 @@ class Process5{
 		global $IMPORT_FILENAME, $procNo;
 		$currentRowSize = 0;
 		try{
+			//initialize Database
 			$this->db = new Database($this->logger);
+			$this->crm_db = new CRMDatabase($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
 
 			$path = getImportPath(true);
 			$filename = $IMPORT_FILENAME[$procNo];
@@ -80,6 +82,17 @@ class Process5{
 				// close database connection
 				$this->db->disconnect();
 			}
+			if($this->crm_db) {
+				if(isset($cntr)){
+					$this->crm_db->rollback();
+				}
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
 			$this->mail->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
@@ -89,6 +102,14 @@ class Process5{
 			if($this->db) {
 				// close database connection
 				$this->db->disconnect();
+			}
+			if($this->crm_db) {
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
 			}
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
@@ -106,6 +127,14 @@ class Process5{
 		if($this->db) {
 			// close database connection
 			$this->db->disconnect();
+		}
+		if($this->crm_db) {
+			// close database connection
+			$this->crm_db->disconnect();
+		}
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
 		}
 	}
 
@@ -144,7 +173,7 @@ class Process5{
 			foreach ($dataInsert as $row => &$data){
 				if(($cntr % $MAX_COMMIT_SIZE) == 0){
 					$this->db->beginTransaction();
-
+					$this->crm_db->beginTransaction();
 				}
 				$tableData = emptyToNull($data);
 				$newTableList = $this->replaceTable1Keys($tableData);
@@ -153,9 +182,9 @@ class Process5{
 				if($validRow === true){
 					$key = array($tableData[$officeIdHeader]); //office_id
 					// Search item [office_id] from 「m_corporation.office_id」
-					$resultCount = $this->db->getDataCount(self::TABLE_1, self::KEY_1."=?", $key);
+					$resultCount = $this->rds_db->getDataCount(self::TABLE_1, self::KEY_1."=?", $key);
 					// ロック顧客かどうか office_id で確認 20161004lock_add
-					$lockCount = $this->db->getDataCount(self::LOCK_TABLE_1." lo inner join ".self::TABLE_1." mc on lo.corporation_code = mc.corporation_code ",
+					$lockCount = $this->rds_db->getDataCount(self::LOCK_TABLE_1." lo inner join ".self::TABLE_1." mc on lo.corporation_code = mc.corporation_code ",
 					 "mc.".self::KEY_1."=? and lo.lock_status = 1 and lo.delete_flag = false", $key);
 					//prepare the data
 					$table2List = $this->insertDefaultValue2($tableData);
@@ -164,10 +193,11 @@ class Process5{
 					if($resultCount <= 0) { // insert new record
 						// When inserting, newly increment the 「m_corporation.corporation_code」, then set corporation_code
 						// "C"+8 digits
-						$nextId = $this->db->getNextVal(self::SEQ);
+						$nextId = $this->crm_db->getNextVal(self::SEQ);
 						$newTable2List[self::KEY_2] = $nextId;
-						$result = $this->db->insertData(self::TABLE_1, $newTable2List);
-						if(!$result){
+						$result1 = $this->crm_db->insertData(self::TABLE_1, $newTable2List);
+						$result2 = $this->db->insertData(self::TABLE_1, $newTable2List);
+						if(!$result1 || !$result2){
 							$this->logger->error("Failed to register [$officeIdHeader: $tableData[$officeIdHeader]] to ". self::TABLE_1);
 							# 2016/09/08 四半期処理のために処理中断をスキップに
 							#throw new Exception("Process5 Failed to register [$officeIdHeader: $tableData[$officeIdHeader]] to ". self::TABLE_1);
@@ -180,7 +210,7 @@ class Process5{
 					}else{
 						// office_id が同じで、 全角半角除去した住所全文[addressall]が一致しない場合は、緯度経度を null にする
 						$addressall = $newTable2List['addressall'];
-						$changeAddressFlag = $this->db->getDataCount(self::TABLE_1, self::KEY_1."=?"." and replace(replace(addressall,'　',''),' ','') != replace(replace('".$addressall."','　',''),' ','') " , $key );
+						$changeAddressFlag = $this->rds_db->getDataCount(self::TABLE_1, self::KEY_1."=?"." and replace(replace(addressall,'　',''),' ','') != replace(replace('".$addressall."','　',''),' ','') " , $key );
 						if($changeAddressFlag > 0){
 							$this->logger->info("住所が一致しなかったため緯度経度を null に更新します. ".self::KEY_1." = ".$key[0]);
 							// latitude と longitude の更新カラムを付け足し
@@ -191,7 +221,8 @@ class Process5{
 						}
 
 						// update fields already updated on $newTableList
-						$result = $this->db->updateData(self::TABLE_1, $newTable2List, self::KEY_1."=?", $key);// key = office_id
+						$result1 = $this->crm_db->updateData(self::TABLE_1, $newTable2List, self::KEY_1."=?", $key);// key = office_id
+						$result2 = $this->db->updateData(self::TABLE_1, $newTable2List, self::KEY_1."=?", $key);
 						if(!$result){
 							$this->logger->info("Failed to update [$officeIdHeader: $tableData[$officeIdHeader]] to ". self::TABLE_1);
 							# 2016/09/08 四半期処理のために処理中断をスキップに
@@ -211,6 +242,7 @@ class Process5{
 				}
 				if(($cntr % $MAX_COMMIT_SIZE) == 0 || ($row+1) == sizeof($dataInsert)){
 					$this->db->commit();
+					$this->crm_db->commit();
 				}
 			}
 		} catch( Exception $e) {

@@ -8,7 +8,7 @@
  *
  */
 class Process7{
-	private $logger, $db, $mail, $validate;
+	private $logger, $db, $crm_db, $rds_db, $recolin_db, $mail, $validate;
 	private $isError = false;
 
 	const TABLE_1 = 'm_corporation';
@@ -37,7 +37,12 @@ class Process7{
 		global $IMPORT_FILENAME, $procNo;
 		$currentRowSize = 0;
 		try{
+			//initialize Database
 			$this->db = new Database($this->logger);
+			$this->crm_db = new CRMDatabase($this->logger);
+			$this->rds_db = new RDSDatabase($this->logger);
+			$this->recolin_db = new RecolinDatabase($this->logger);
+			
 			$path = getImportPath(true);
 			$filename = $IMPORT_FILENAME[$procNo];
 			$files = getMultipleCsv($filename, $path);
@@ -78,6 +83,21 @@ class Process7{
 				// close database connection
 				$this->db->disconnect();
 			}
+			if($this->crm_db) {
+				if(isset($cntr)){
+					$this->crm_db->rollback();
+				}
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
+			if($this->recolin_db) {
+				// close database connection
+				$this->recolin_db->disconnect();
+			}
 			$this->mail->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
@@ -87,6 +107,18 @@ class Process7{
 			if($this->db) {
 				// close database connection
 				$this->db->disconnect();
+			}
+			if($this->crm_db) {
+				// close database connection
+				$this->crm_db->disconnect();
+			}
+			if($this->rds_db) {
+				// close database connection
+				$this->rds_db->disconnect();
+			}
+			if($this->recolin_db) {
+				// close database connection
+				$this->recolin_db->disconnect();
 			}
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
@@ -104,6 +136,18 @@ class Process7{
 		if($this->db) {
 			// close database connection
 			$this->db->disconnect();
+		}
+		if($this->crm_db) {
+			// close database connection
+			$this->crm_db->disconnect();
+		}
+		if($this->rds_db) {
+			// close database connection
+			$this->rds_db->disconnect();
+		}
+		if($this->recolin_db) {
+			// close database connection
+			$this->recolin_db->disconnect();
 		}
 	}
 
@@ -145,6 +189,7 @@ class Process7{
 			foreach ($dataList as $row => &$data){
 				if(($cntr % $MAX_COMMIT_SIZE) == 0){
 					$this->db->beginTransaction();
+					$this->crm_db->beginTransaction();
 				}
 				//check if row contents are valid
 				$tableData = emptyToNull($data);
@@ -152,16 +197,16 @@ class Process7{
 				if($validRow === true){
 					// Using the item: 「顧客コード」 as key, search for 「m_corporation.corporation_code」
 					$key1 = array($tableData[$corpCodeHeader]);
-					$recordCount1 = $this->db->getDataCount(self::TABLE_1, self::KEY_1."=?", $key1);
+					$recordCount1 = $this->rds_db->getDataCount(self::TABLE_1, self::KEY_1."=?", $key1);
 					// ロック顧客かどうか corporation_code で確認 20161004lock_add
-					$lockCount = $this->db->getDataCount(self::LOCK_TABLE_1, self::KEY_1."=? and lock_status = 1 and delete_flag = false", $key1);
+					$lockCount = $this->rds_db->getDataCount(self::LOCK_TABLE_1, self::KEY_1."=? and lock_status = 1 and delete_flag = false", $key1);
 					// 顧客が存在して、かつまだロックされていない顧客はm_corporationのLBC情報を更新 20161004lock_add
 					if($recordCount1 > 0 && $lockCount <= 0){
 						// Using the item: 「LBC」 as key, search for 「m_lbc.office_id」
 						$key2 = array($tableData[$officeIdHeader]);
-						$recordCount2 = $this->db->getDataCount(self::TABLE_2, self::KEY_2."=?", $key2);
+						$recordCount2 = $this->recolin_db->getDataCount(self::TABLE_2, self::KEY_2."=?", $key2);
 						if($recordCount2 > 0){
-							$mLbcRecord = $this->db->getData("*", self::TABLE_2, self::KEY_2."=?", $key2);
+							$mLbcRecord = $this->recolin_db->getData("*", self::TABLE_2, self::KEY_2."=?", $key2);
 							//prepare the update fields 更新カラム準備
 							$tableList = emptyToNull($mLbcRecord);
 							$tableList = $this->replaceTableKeys($tableList);
@@ -171,7 +216,7 @@ class Process7{
 							// LBCより作成した住所全文
 							$addressall = $newTableList['addressall'];
 							// 住所全文が一致しないかを顧客コード指定で確認
-							$changeAddressFlag = $this->db->getDataCount(self::TABLE_1, self::KEY_1."=?"." and replace(replace(addressall,'　',''),' ','') != replace(replace('".$addressall."','　',''),' ','') " , $key1 );
+							$changeAddressFlag = $this->rds_db->getDataCount(self::TABLE_1, self::KEY_1."=?"." and replace(replace(addressall,'　',''),' ','') != replace(replace('".$addressall."','　',''),' ','') " , $key1 );
 							if($changeAddressFlag > 0){
 								$this->logger->info("住所が一致しなかったため緯度経度を null に更新します. ".self::KEY_1." = ".$key1[0]);
 								// latitude と longitude の更新カラムを付け足し
@@ -181,8 +226,9 @@ class Process7{
 							}
 							
 							// LBCの情報($newTableList)を使って顧客コード指定（$key1）で更新
-							$result = $this->db->updateData(self::TABLE_1, $newTableList, self::KEY_1."=?", $key1);
-							if(!$result){
+							$result1 = $this->crm_db->updateData(self::TABLE_1, $newTableList, self::KEY_1."=?", $key1);
+							$result2 = $this->db->updateData(self::TABLE_1, $newTableList, self::KEY_1."=?", $key1);
+							if(!$result1){
 								// 顧客テーブル更新エラー
 								$this->logger->error("Failed to update [".self::KEY_1." = ".$key1[0]."] [$officeIdHeader = $tableData[$officeIdHeader]] in ".self::TABLE_1.".");
 								$this->isError = true;
@@ -213,6 +259,7 @@ class Process7{
 				}
 				if(($cntr % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($dataList)){
 					$this->db->commit();
+					$this->crm_db->commit();
 				}
 			}
 		} catch( Exception $e) {

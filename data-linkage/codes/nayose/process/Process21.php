@@ -64,6 +64,8 @@ class Process21 {
 						$dir = $FTP_RESPONSE_PATH[$key].'/*_'.$name.'.csv';
 						$file_num+=count(glob($dir));
 						$data_num++;
+						
+						//$this->logger->debug($dir);
 						if(count(glob($dir)) === 0)
 							$this->logger->error("file not found : ".$name.'.csv');
 					}
@@ -72,6 +74,8 @@ class Process21 {
 					$dir = $FTP_RESPONSE_PATH[$key].$check_filename;
 					$file_num+=count(glob($dir));
 					$data_num++;
+					
+					//$this->logger->debug($dir);
 					if(count(glob($dir)) === 0)
 						$this->logger->error("file not found : ".$check_filename);
 				}

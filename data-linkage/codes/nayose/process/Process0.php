@@ -92,8 +92,8 @@ class Process0{
 			$procList = $this->getParams();
 			if($procList){
 				$processNo = 0;
-				//call process 21 to 34
-				for($i = 21; $i <= 34; $i++ ){
+				//call process 21 to 35
+				for($i = 21; $i <= 35; $i++ ){
 					if(in_array($i, $procList)){
 						$processNo = $i;
 						$this->callProcessFunc($i);

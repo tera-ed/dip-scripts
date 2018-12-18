@@ -85,21 +85,24 @@ class Process22 {
 			ob_start();
 			system('nkf -g '.escapeshellarg($path_before).escapeshellarg($filename),$returnEncode);
 			$str = str_replace(array("\r\n", "\r", "\n"), '', ob_get_contents());
-			//$this->logger->debug($filename.' file Character code is ' . $str);
+			$this->logger->debug($filename.' file Character code is ' . $str);
 			ob_end_clean();
 			// 想定内の文字コードかエラーチェック
-			if($str == "Shift_JIS" || $str == "ASCII"){
+			//if($str == "Shift_JIS" || $str == "ASCII" || $str == "BINARY"){
+			if (preg_match('/^Shift_JIS/', $str) 
+				|| preg_match('/^ASCII/', $str) 
+				|| preg_match('/^BINARY/', $str)) {
 				// Character code conversion sjis -> utf-8
 				system('nkf --cp932 -x -wLu '.escapeshellarg($path_before).escapeshellarg($filename).' > '.escapeshellarg($path_after).escapeshellarg($filename), $return);
 			}else{
-				throw new Exception("Process22 Character code invalid [".$str."] file name ：.".$filename);
+				throw new Exception("Process22 Character code invalid [".$str."] file name ：".$filename);
 			}
 
 			if($return !== 0){ // failed
 				$this->logger->error("Character code conversion failed. file name ：.".$filename);
-				throw new Exception("Process22 Character code conversion failed file name ：.".$filename);
+				throw new Exception("Process22 Character code conversion failed file name ：".$filename);
 			}else{
-				$this->logger->info("sjis -> utf-8 Character code conversion failed. file name ：.".$filename);
+				$this->logger->info("sjis -> utf-8 Character code conversion failed. file name ：".$filename);
 			}
 			
 		}catch(Exception $e){

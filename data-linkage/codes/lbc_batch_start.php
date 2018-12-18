@@ -12,7 +12,7 @@ $root = __DIR__;
 //if not run by command set default value for arguments
 if (!isset($argv)) {
 	$argc = 2;
-	$argv =array('1', '2,3,4,5,6,7,12,13,14,15,16,17,18,19');
+	$argv =array('1', '2,3,4,5,6,7,12,13,14,15,16,17,18,19,20');
 }
 
 //initialize process 0

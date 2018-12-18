@@ -1,6 +1,6 @@
 <?php
 class Process32{
-	private $logger, $db, $validate, $mail, $SKIP_FLAG;
+	private $logger, $db, $crm_db, $rds_db, $validate, $mail, $SKIP_FLAG;
 	
 	const WK_T_LBC_CRM_LINK         = 'wk_t_lbc_crm_link';
 	const M_CORPORATION_EMP         = 'm_corporation_emp';
@@ -37,7 +37,11 @@ class Process32{
 	 * Execute Process 32
 	 */
 	function execProcess(){
+		//initialize Database
 		$this->db = new Database($this->logger);
+		$this->crm_db = new CRMDatabase($this->logger);
+		$this->rds_db = new RDSDatabase($this->logger);
+			
 		$tables = array(
 			self::M_CORPORATION_EMP, // 顧客担当者
 			self::M_SALES_LINK,      // 営業担当者
@@ -48,28 +52,28 @@ class Process32{
 			// テーブルごとに処理
 			foreach($tables as $idx=>$table){
 				$this->db->beginTransaction();
+				$this->crm_db->beginTransaction();
 				if($this->process($table)){
 					$this->db->commit();
+					$this->crm_db->commit();
 				}
 				else {
 					$this->db->rollback();
+					$this->crm_db->rollback();
 				}
 			}
 		} catch (PDOException $e1){
 			$this->logger->debug("Error found in Database.");
 			$this->logger->error($e1->getMessage());
-			if($this->db){
-				// Close Database Connection
-				$this->db->disconnect();
-			}
+			// close database connection
+			$this->disconnect();
 			$this->mail->sendMail($e1->getMessage());
 			throw $e1;
 		} catch (Exception $e2){
 			$this->logger->debug("Error found in Process.");
 			//$this->logger->error($e2->getMessage());
-			if($this->db){
-				$this->db->disconnect();
-			}
+			// close database connection
+			$this->disconnect();
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
 			// and proceed to the next process number (ERR_CODE: 602)
@@ -79,9 +83,22 @@ class Process32{
 				throw $e2;
 			}
 		}
-		if($this->db) {
-			// close database connection
+		// close database connection
+		$this->disconnect();
+	}
+	
+	/**
+	 * Close Database Connection
+	 */
+	private function disconnect(){
+		if($this->db){
 			$this->db->disconnect();
+		}
+		if($this->crm_db){
+			$this->crm_db->disconnect();
+		}
+		if($this->rds_db) {
+			$this->rds_db->disconnect();
 		}
 	}
 	
@@ -152,6 +169,7 @@ class Process32{
 				// proceed to next process when value is 1
 				if($this->SKIP_FLAG == 0){
 					$this->db->rollback();
+					$this->crm_db->rollback();
 					throw new Exception("Process32 ".$table." ".self::E_MSG_002." corporation_code:".$corporation_code);
 					//shell_exec('PAUSE');
 				}
@@ -213,6 +231,7 @@ class Process32{
 		try {
 			$sql = "UPDATE {$table} SET corporation_code = ? , update_user_code = 'SYSTEM', update_date = now() WHERE corporation_code = ? ";
 			$this->db->executeQuery($sql, array($name_approach_code, $corporation_code));
+			$this->crm_db->executeQuery($sql, array($name_approach_code, $corporation_code));
 		} catch (Exception $e){
 			$this->hasError = true;
 			//$this->mail->sendMail($table." ".self::E_MSG_001."  $corporation_code -> $name_approach_code");
@@ -221,8 +240,9 @@ class Process32{
 			$bool = false;
 			// proceed to next process when value is 1
 			if($this->SKIP_FLAG == 0){
-			//	shell_exec('PAUSE');
+				//shell_exec('PAUSE');
 				$this->db->rollback();
+				$this->crm_db->rollback();
 				throw new Exception("Process32 ".$table." ".self::E_MSG_001." $corporation_code -> $name_approach_code");
 			}
 		}
@@ -234,7 +254,7 @@ class Process32{
 		$sql = "SELECT office_id, name_approach_code, name_approach_office_id "
 				. " FROM " . self::WK_T_LBC_CRM_LINK
 				. " WHERE corporation_code = ? and office_id = ? ";
-		return $this->db->getDataSql($sql, array($name_approach_code, $name_approach_office_id));
+		return $this->rds_db->getDataSql($sql, array($name_approach_code, $name_approach_office_id));
 	}
 	
 	// 顧客コードに紐づく名寄せ情報を取得 N件 
@@ -244,7 +264,7 @@ class Process32{
 				. " FROM " . self::WK_T_LBC_CRM_LINK
 				. " WHERE corporation_code = ?"
 				. " ORDER BY delete_flag ";
-		return $this->db->getDataSql($sql, array($corporation_code));
+		return $this->rds_db->getDataSql($sql, array($corporation_code));
 	}
 	// 処理対象テーブルから重複排除した顧客コードを取得
 	// ロック顧客は除く
@@ -254,7 +274,7 @@ class Process32{
 		AND NOT EXISTS(SELECT 1 FROM t_lock_lbc_link 
 			WHERE T1.corporation_code = corporation_code AND lock_status = 1 AND delete_flag = false
 			)";
-		return $this->db->getDataSql($sql);
+		return $this->rds_db->getDataSql($sql);
 	}
 }
 ?>
