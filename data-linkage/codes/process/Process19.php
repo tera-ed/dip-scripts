@@ -47,8 +47,6 @@ class Process19{
 		try{
 			//add 「_comp」 in the end of the name
 			$compFolderePath = rtrim($dir, '/').'_comp';
-			
-			//check if file exist
 			$this->moveDir($dir, $compFolderePath);
 			// check if Process11 exist
 			foreach(glob(rtrim($dir, '/').'_11/') as $d_name){
@@ -67,23 +65,51 @@ class Process19{
 	 */
 	function moveDir($dir, $compFolderePath){
 		try{
+			//$this->logger->debug($dir);
 			if(glob($dir)){
-				foreach(glob($dir.'*') as $f_name){
-					$this->mkdirBackupFoldere($compFolderePath);
-					/****
-					// ファイル名取得
-					$file_name =shell_exec('basename '.$f_name);
-					// 改行が入るため取る
-					$file_name=str_replace(array("\r\n","\n","\r"), '', $file_name);
-					// ディレクトリ名
-					$dirname = dirname($f_name);
-				
-					shell_exec('tar zcvf '.escapeshellarg($compFolderePath.'/'.$file_name.'.tar.gz').' -C '.escapeshellarg($dirname).' '.escapeshellarg($file_name).' --remove-files');
-					$this->logger->debug('moved and compression '.$f_name.' to '.$compFolderePath);
-					*/
-					shell_exec('mv -f '.escapeshellarg($f_name).' '.escapeshellarg($compFolderePath));
-					$this->logger->debug('moved '.$f_name.' to '.$compFolderePath);
+				foreach(glob($dir.'*/') as $f_name1){
+					if (is_dir($f_name1)) {
+						$d_name = $f_name1;
+						// ディレクトリ名取得
+						$subdir_name = basename($f_name1);
+						
+						foreach(glob($d_name.'*/') as $f_name2){
+							$this->movefile($f_name2, $compFolderePath.'/'.$subdir_name);
+						}
+						$this->rmdirDir($d_name, $compFolderePath);
+					} else {
+						$this->movefile($f_name1, $compFolderePath);
+					}
 				}
+			}
+			$this->rmdirDir($dir, $compFolderePath);
+		}catch(Exception $e){
+			throw $e;
+		}
+	}
+	
+	function movefile($f_name, $compFolderePath){
+		$this->logger->debug($f_name);
+		$this->mkdirBackupFoldere($compFolderePath);
+		/****
+		// ファイル名取得
+		$file_name =shell_exec('basename '.$f_name);
+		// 改行が入るため取る
+		$file_name=str_replace(array("\r\n","\n","\r"), '', $file_name);
+		// ディレクトリ名
+		$dirname = dirname($f_name);
+	
+		shell_exec('tar zcvf '.escapeshellarg($compFolderePath.'/'.$file_name.'.tar.gz').' -C '.escapeshellarg($dirname).' '.escapeshellarg($file_name).' --remove-files');
+		$this->logger->debug('moved and compression '.$f_name.' to '.$compFolderePath);
+		*/
+		shell_exec('mv -f '.escapeshellarg($f_name).' '.escapeshellarg($compFolderePath));
+		$this->logger->debug('moved '.$f_name.' to '.$compFolderePath);
+	}
+	
+	function rmdirDir($dir, $compFolderePath){
+		if(glob($dir)){
+			// ディレクトリ削除
+			if (count(glob($dir.'*/')) == 0) {
 				// ディレクトリ削除
 				if(rmdir($dir)){
 					// 削除成功
@@ -93,11 +119,8 @@ class Process19{
 					$this->logger->error("ディレクトリ削除に失敗しました. folder name：".$dir);
 					throw new Exception("Process19 Failed to remove folders. ".$dir);
 				}
-				
 				$this->logger->info('renamed '.$dir.' to '.$compFolderePath);
 			}
-		}catch(Exception $e){
-			throw $e;
 		}
 	}
 	

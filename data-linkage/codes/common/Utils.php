@@ -153,10 +153,10 @@ function getCsvHeader($filename){
  * @param $isAfter true if after otherwise false
  * @return string import path
  */
-function getImportPath($isAfter = false){
+function getImportPath($isAfter = false, $dir_mei=''){
 	global $root, $IMPORT_PATH;
 	$mode = $isAfter? 'after' : 'before';
-	return $root.$IMPORT_PATH[$mode]."/".date('Ymd')."/";
+	return $root.$IMPORT_PATH[$mode]."/".date('Ymd').$dir_mei."/";
 }
 
 /**
@@ -164,10 +164,10 @@ function getImportPath($isAfter = false){
  * @param bool $isAfter - true if after otherwise false
  * @return string export path
  */
-function getExportPath($isAfter = false){
+function getExportPath($isAfter = false, $dir_mei=''){
 	global $root, $EXPORT_PATH;
 	$mode = $isAfter? 'after' : 'before';
-	return $root.$EXPORT_PATH[$mode]."/".date('Ymd')."/";
+	return $root.$EXPORT_PATH[$mode]."/".date('Ymd').$dir_mei."/";
 }
 
 

@@ -74,8 +74,8 @@ $IMPORT_PATH['before'] = '/tmp/csv/Import/before';
 $IMPORT_PATH['after'] = '/tmp/csv/Import/after';
 $IMPORT_PATH['shellDir'] = '/sh/';
 
-$FTP_IMPORT_PATH['QuarterCorpMaster'] = '/home/teramgmt/share/QuarterCorpMaster/Response';
-$FTP_IMPORT_PATH['RivalMediaFileHere'] = '/home/teramgmt/share/RivalMedia/FileHere';
+$FTP_IMPORT_PATH['QuarterCorpMaster'] = '/home/teramgmt/LS_matching_Request/QuarterCorpMaster/Response';
+$FTP_IMPORT_PATH['RivalMediaFileHere'] = '/home/teramgmt/LS_matching_Request/RivalMedia/FileHere';
 
 // ----------------------------
 // export settings
@@ -101,15 +101,15 @@ $CSV_EXPORT['date_fmt'] = 'YmdHis';
 // ----------------------------
 // ftp settings
 // ----------------------------
-$FTP_IMPORT_PATH['Obic'] = '/home/teramgmt/share/Obic/Response';
-$FTP_IMPORT_PATH['CorpMaster'] = '/home/teramgmt/share/CorpMaster/Response';
-$FTP_IMPORT_PATH['NGCorp'] = '/home/teramgmt/share/NGCorp/Response';
-$FTP_IMPORT_PATH['RivalMedia'] = '/home/teramgmt/share/RivalMedia/Response';
+$FTP_IMPORT_PATH['Obic'] = '/home/teramgmt/LS_matching_Request/Obic/Response';
+$FTP_IMPORT_PATH['CorpMaster'] = '/home/teramgmt/LS_matching_Request/CorpMaster/Response';
+$FTP_IMPORT_PATH['NGCorp'] = '/home/teramgmt/LS_matching_Request/NGCorp/Response';
+$FTP_IMPORT_PATH['RivalMedia'] = '/home/teramgmt/LS_matching_Request/RivalMedia/Response';
 
-$FTP_EXPORT_PATH['Obic'] = '/home/teramgmt/temp/LS-request';
-$FTP_EXPORT_PATH['CorpMaster'] = '/home/teramgmt/temp/LS-request';
-$FTP_EXPORT_PATH['NGCorp'] = '/home/teramgmt/temp/LS-request';
-$FTP_EXPORT_PATH['RivalMedia'] = '/home/teramgmt/temp/LS-request';
+$FTP_EXPORT_PATH['Obic'] = '/home/teramgmt/LS_matching_Request/Obic/Request';
+$FTP_EXPORT_PATH['CorpMaster'] = '/home/teramgmt/LS_matching_Request/CorpMaster/Request';
+$FTP_EXPORT_PATH['NGCorp'] = '/home/teramgmt/LS_matching_Request/NGCorp/Request';
+$FTP_EXPORT_PATH['RivalMedia'] = '/home/teramgmt/LS_matching_Request/RivalMedia/Request';
 
 // ----------------------------
 // email settings

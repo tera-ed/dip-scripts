@@ -10,19 +10,19 @@ source ./utils.sh
 
 # config
 
-# “Çƒtƒ@ƒCƒ‹ƒpƒ^[ƒ“–¼
+# èª­è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ã‚¿ãƒ¼ãƒ³å
 INPUT_FILE_NAME_PATTERN=${INPUT_FILE_NAME_PATTERN_MDA_REQ}
-# ŠÄ‹ƒfƒBƒŒƒNƒgƒŠ
+# ç›£è¦–ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
 INPUT_DIR_PATH=${EXPORT_AFTER_DIR_PATH}
 
-# ‹N“®—L–³
+# èµ·å‹•æœ‰ç„¡
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
-# ‹N“®—L–³ƒpƒ^[ƒ“–¼
+# èµ·å‹•æœ‰ç„¡ãƒ‘ã‚¿ãƒ¼ãƒ³å
 PREFIX_OF_FILENAME_ON_PROCESSING=${SENDING_REQUWET_PROCESSING}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
-#ƒƒOƒtƒ@ƒCƒ‹–¼
+#ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«å
 LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
 # ----------------------------------
@@ -30,7 +30,7 @@ LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 # tey-catch Error
 trap catch ERR
 
-# ƒGƒ‰[o—Í
+# ã‚¨ãƒ©ãƒ¼å‡ºåŠ›
 function catch {
     echo CATCH
     end_time
@@ -38,7 +38,7 @@ function catch {
 
 # ----------------------------------
 
-# 2‚Â‚ÌƒfƒBƒŒƒNƒgƒŠ‚©‚ç“®ì‚ğs‚¤
+# 2ã¤ã®ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã‹ã‚‰å‹•ä½œã‚’è¡Œã†
 function csv_file_two_dir {
   my_echo "csv_file_two_dir $1 $2"
   oneday_dir=$1
@@ -51,7 +51,7 @@ function csv_file_two_dir {
   
   input_csvfile_fullpath_array=`find ${INPUT_DIR_PATH}/${oneday_dir} ${INPUT_DIR_PATH}/${twoday_dir} -maxdepth 1 -regex ${INPUT_FILE_NAME_PATTERN} -type f | sort`
   for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
-    # ˆÚ“®
+    # ç§»å‹•
     move_input_csv_file_sudo ${input_csvfile_fullpath} ${MAPING_REQUEST_DIR_PATH}/
   done
   
@@ -62,7 +62,7 @@ function csv_file_two_dir {
   fi
 }
 
-# 1‚Â‚ÌƒfƒBƒŒƒNƒgƒŠ‚©‚ç“®ì‚ğs‚¤
+# 1ã¤ã®ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã‹ã‚‰å‹•ä½œã‚’è¡Œã†
 function csv_file_one_dir {
   my_echo "csv_file_one_dir $1"
   oneday_dir=$1
@@ -73,7 +73,7 @@ function csv_file_one_dir {
   fi
   input_csvfile_fullpath_array=`find ${INPUT_DIR_PATH}/${oneday_dir} -maxdepth 1 -regex ${INPUT_FILE_NAME_PATTERN} -type f | sort`
   for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
-    # ˆÚ“®
+    # ç§»å‹•
     move_input_csv_file_sudo ${input_csvfile_fullpath} ${MAPING_REQUEST_DIR_PATH}/
   done
   
@@ -86,7 +86,7 @@ function csv_file_one_dir {
 
 # ----------------------------------
 
-# I—¹“®ì
+# çµ‚äº†å‹•ä½œ
 function end_time {
   delete_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
   
@@ -94,7 +94,7 @@ function end_time {
   exit
 }
 
-# ŠJn
+# é–‹å§‹
 function main {
   echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
   
@@ -111,9 +111,8 @@ function main {
   elif [ -e ${INPUT_DIR_PATH}/${OLD_TODAY_DIR_BACKUP} ]; then
     csv_file_one_dir $OLD_TODAY_DIR_BACKUP
   else
-      # ‘¶İ‚µ‚È‚¢ê‡
+      # å­˜åœ¨ã—ãªã„å ´åˆ
       echo "no new csv files. exit."
-      end_time
   fi
   end_time
 }
@@ -122,7 +121,7 @@ function main {
 # ----------------------------------
 TODAY_DIR=`date +'%Y%m%d'`
 if [ ! -e ${LOG_INPUT_DIR_PATH}/${TODAY_DIR} ]; then
-  # ‘¶İ‚µ‚È‚¢ê‡
+  # å­˜åœ¨ã—ãªã„å ´åˆ
   mkdir ${LOG_INPUT_DIR_PATH}/${TODAY_DIR}
 fi
 {

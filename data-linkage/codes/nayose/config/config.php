@@ -105,10 +105,10 @@ $CSV_EXPORT['encoding'] = 'UTF-8';
 // appended to export filename, leave blank to remove date from filename
 $CSV_EXPORT['date_fmt'] = 'YmdHis';
 
-$FTP_RESPONSE_PATH['CorpMaster'] = '/home/teramgmt/share/CorpMaster/Response';
-$FTP_RESPONSE_PATH['RivalMedia'] = '/home/teramgmt/share/RivalMedia/Response';
-$FTP_RESPONSE_PATH['Obic'] = '/home/teramgmt/share/Obic/Response';
-$FTP_RESPONSE_PATH['NGCorp'] = '/home/teramgmt/share/NGCorp/Response';
+$FTP_RESPONSE_PATH['CorpMaster'] = '/home/teramgmt/LS_matching_Request/CorpMaster/Response';
+$FTP_RESPONSE_PATH['RivalMedia'] = '/home/teramgmt/LS_matching_Request/RivalMedia/Response';
+$FTP_RESPONSE_PATH['Obic'] = '/home/teramgmt/LS_matching_Request/Obic/Response';
+$FTP_RESPONSE_PATH['NGCorp'] = '/home/teramgmt/LS_matching_Request/NGCorp/Response';
 
 // ----------------------------
 // email settings

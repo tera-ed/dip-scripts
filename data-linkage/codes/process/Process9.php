@@ -44,6 +44,7 @@ class Process9 {
 	public function execProcess(){
 		global $IMPORT_FILENAME, $procNo;
 		$row = 0;
+		$cntr = 0;
 		try{
 			// Initialize Database
 			$this->db = new Database($this->logger);
@@ -69,7 +70,7 @@ class Process9 {
 							// 配列の値がすべて空の時の処理
 							break;
 						}
-						$cntr = $this->processData($csvList, self::WK_B_TABLE.",LIMIT:$limit,OFFSET:$offset", $header);
+						$cntr += $this->processData($csvList, self::WK_B_TABLE.",LIMIT:$limit,OFFSET:$offset", $header);
 						$offsetCount++;
 					}
 				} else {
@@ -192,26 +193,30 @@ class Process9 {
 						}else{
 							$getCorporationCode = array(array("corporation_code" => $this->tmpCurrentIdArray[$data[$office_id]]));
 						}
-						// office_idは配列ではなく値を渡すよう修正 2017/09/29 tanaka mod
-						$finalArray = $this->mergeArray($getMediaName,$getCompMediaName,$data[$office_id]);
-						$finalArray = $this->mergeArray($getMediaData,$finalArray,$data[$office_id]);
-						$finalArray = $this->mergeArray($getCorporationCode,$finalArray,$data[$office_id]);
-						$finalArray = $this->unsetKeys($finalArray);
+						if (sizeof($getCorporationCode) > 0) {
+							// 顧客コードが存在する
+							
+							// office_idは配列ではなく値を渡すよう修正 2017/09/29 tanaka mod
+							$finalArray = $this->mergeArray($getMediaName,$getCompMediaName,$data[$office_id]);
+							$finalArray = $this->mergeArray($getMediaData,$finalArray,$data[$office_id]);
+							$finalArray = $this->mergeArray($getCorporationCode,$finalArray,$data[$office_id]);
+							$finalArray = $this->unsetKeys($finalArray);
 
-						// insert Data
-						$result = $this->crm_db->insertData(self::databaseInsertTable1, $finalArray[0]);
-						if($result){
-							// delete Data for the item: 「媒体コード」=「t_media_match_wait.media_code」
-							$result = $this->db->deleteData(self::databaseTable, "media_code = ?", array($data[$media_code]));
+							// insert Data
+							$result = $this->crm_db->insertData(self::databaseInsertTable1, $finalArray[0]);
 							if($result){
-								$this->logger->info("Data Successfully Moved ".$condition." = ".$data[$media_code]);
+								// delete Data for the item: 「媒体コード」=「t_media_match_wait.media_code」
+								$result = $this->db->deleteData(self::databaseTable, "media_code = ?", array($data[$media_code]));
+								if($result){
+									$this->logger->info("Data Successfully Moved ".$condition." = ".$data[$media_code]);
+								}else{
+									$this->logger->error("Failed to deleteData".self::databaseTable."media_code=".$data[$media_code]);
+									throw new Exception("Process9 Failed to deleteData".self::databaseTaWble."media_code=".$data[$media_code]);
+								}
 							}else{
-								$this->logger->error("Failed to deleteData".self::databaseTable."media_code=".$data[$media_code]);
-								throw new Exception("Process9 Failed to deleteData".self::databaseTaWble."media_code=".$data[$media_code]);
+								$this->logger->error("Failed to insertData".self::databaseInsertTable1."media_code=".$data[$media_code]);
+								throw new Exception("Process9 Failed to insertData".self::databaseInsertTable1."media_code=".$data[$media_code]);
 							}
-						}else{
-							$this->logger->error("Failed to insertData".self::databaseInsertTable1."media_code=".$data[$media_code]);
-							throw new Exception("Process9 Failed to insertData".self::databaseInsertTable1."media_code=".$data[$media_code]);
 						}
 					} else {
 						$this->logger->info($condition." = ".$data[$media_code]. " No match Found in ".self::databaseTable);
@@ -406,28 +411,30 @@ class Process9 {
 		$key2 = "office_id";
 		$condition = $key1."=? and ".$key2."=?";
 		try {
-			while($row = array_shift($corporationCodeList)){
-				$corporation_code = $row['corporation_code'];
-				$dataCount = $this->rds_db->getDataCount(self::WK_L_TABLE, $condition, array($corporation_code, $office_id));
-				if($dataCount > 0 ){
-					$result1 = $this->crm_db->deleteData(self::WK_L_TABLE, $condition, array($corporation_code, $office_id));
-					if($result1){
-						$this->logger->info("Data Successfully Moved ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
-					}else{
-						throw new Exception("Process9 Failed to deleteData ".self::WK_L_TABLE." ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
+			if (sizeof($corporationCodeList) > 0) {
+				while($row = array_shift($corporationCodeList)){
+					$corporation_code = $row['corporation_code'];
+					$dataCount = $this->rds_db->getDataCount(self::WK_L_TABLE, $condition, array($corporation_code, $office_id));
+					if($dataCount > 0 ){
+						$result1 = $this->crm_db->deleteData(self::WK_L_TABLE, $condition, array($corporation_code, $office_id));
+						if($result1){
+							$this->logger->info("Data Successfully Moved ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
+						}else{
+							throw new Exception("Process9 Failed to deleteData ".self::WK_L_TABLE." ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
+						}
 					}
-				}
-				$result2 = $this->crm_db->insertData(self::WK_L_TABLE, 
-					array(
-						"corporation_code" => $corporation_code,
-						"office_id" =>  $office_id,
-						"match_detail" =>  "Process9 作成",
-						"current_data_flag" => "1",
-						"delete_flag" => null
-					)
-				);
-				if(!$result2){
-					throw new Exception("Process9 Failed to insertTable ".self::WK_L_TABLE." ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
+					$result2 = $this->crm_db->insertData(self::WK_L_TABLE, 
+						array(
+							"corporation_code" => $corporation_code,
+							"office_id" =>  $office_id,
+							"match_detail" =>  "Process9 作成",
+							"current_data_flag" => "1",
+							"delete_flag" => null
+						)
+					);
+					if(!$result2){
+						throw new Exception("Process9 Failed to insertTable ".self::WK_L_TABLE." ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
+					}
 				}
 			}
 		} catch (Exception $e){
@@ -459,22 +466,10 @@ class Process9 {
 					// 存在しない場合、m_corporation_bakにから取得
 					$mRecord = $this->rds_db->getData('*',self::databaseGetValue3, $condition1." = ?", array($code));
 					if(!empty($mRecord)){
-						// m_corporationに新規作成
-						
-						//prepare the update fields
-						$tableList = emptyToNull($mRecord);
-						
-						unset($tableList[0]['create_date']);
-						unset($tableList[0]['create_user_code']);
-						unset($tableList[0]['update_date']);
-						unset($tableList[0]['update_user_code']);
-						unset($tableList[0]['delete_flag']);
-						$newTableList = $tableList[0];
-						
-						//$this->logger->debug(var_export($newTableList , true));
-						$result = $this->db->insertUpdateData(self::databaseGetValue2, $newTableList, "corporation_code");
+						$result = $this->insertUpdateCorporation($mRecord);
 						if(!$result){
 							$this->logger->error("Failed to insert [$condition1 : $code] to ". self::databaseGetValue2);
+							throw new Exception("Process9 Failed to insert [$condition1 : $code] to ". self::databaseGetValue2);
 						} else {
 							$this->logger->info("Inserting row [$condition1: $code] to ". self::databaseGetValue2);
 							$corporationCodeList = array_merge($corporationCodeList, array($value));
@@ -490,17 +485,55 @@ class Process9 {
 			}
 		} else {
 			// 存在しない場合、顧客から取得
-			$corporationCodeList = $this->rds_db->getData("corporation_code",self::databaseGetValue2,$condition2."=?",$key1);
+			$corporationCodeList = $this->rds_db->getData("corporation_code",self::databaseGetValue2,$condition2."=?", array($office_id));
 			if(!$corporationCodeList){
-				// エラー
-				$this->logger->error($condition2." = ".$office_id. " No match Found in ".self::databaseGetValue2);
-				throw new Exception("Process9 ".$condition2." = ".$office_id. " No match Found in ".self::databaseGetValue2);
-			} else{
-				// wk_t_lbc_crm_linkに削除・新規作成
-				$this->lbcCrmLinkInsertData($corporationCodeList, $office_id);
+				// 存在しない場合、m_corporation_bakにから取得
+				$mRecord = $this->rds_db->getData('*',self::databaseGetValue3, $condition2." = ?", array($office_id));
+				if(!empty($mRecord)){
+					$code = $mRecord[0][$condition1];
+					$value = array($condition1 => $code);
+					
+					$result = $this->insertUpdateCorporation($mRecord);
+					if(!$result){
+						$this->logger->error("Failed to insert [$condition1 : $code, $condition2 : $office_id] to ". self::databaseGetValue2);
+						throw new Exception("Process9 Failed to insert [$condition1 : $code, $condition2 : $office_id] to ". self::databaseGetValue2);
+					} else {
+						$this->logger->info("Inserting row [$condition1 : $code, $condition2 : $office_id] to ". self::databaseGetValue2);
+						$corporationCodeList = array_merge($corporationCodeList, array($value));
+					}
+				}else{
+					// エラー
+					$this->logger->error($condition2." = ".$office_id. " No match Found in ".self::databaseGetValue2);
+					throw new Exception("Process9 ".$condition2." = ".$office_id. " No match Found in ".self::databaseGetValue2);
+				}
 			}
+			// wk_t_lbc_crm_linkに削除・新規作成
+			$this->lbcCrmLinkInsertData($corporationCodeList, $office_id);
+
 		}
 		return $corporationCodeList;
+	}
+	
+		
+	/**
+	 * insert update m_corporation
+	 * @return array mRecord 
+	 */
+	function insertUpdateCorporation($mRecord){
+		// m_corporationに新規作成
+		
+		//prepare the update fields
+		$tableList = emptyToNull($mRecord);
+		
+		unset($tableList[0]['create_date']);
+		unset($tableList[0]['create_user_code']);
+		unset($tableList[0]['update_date']);
+		unset($tableList[0]['update_user_code']);
+		unset($tableList[0]['delete_flag']);
+		$newTableList = $tableList[0];
+		
+		//$this->logger->debug(var_export($newTableList , true));
+		return $this->crm_db->insertUpdateData(self::databaseGetValue2, $newTableList, "corporation_code");
 	}
 }
 ?>

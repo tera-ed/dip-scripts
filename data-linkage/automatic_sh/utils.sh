@@ -9,22 +9,21 @@ source ./file_path_config.sh
 # ----------------------------------
 # config
 
-# ƒƒOƒfƒoƒbƒO—L–³
-#GLOBAL_VAR_DEBUG=${FALSE}
-GLOBAL_VAR_DEBUG=${TRUE}
+# ãƒ­ã‚°ãƒ‡ãƒãƒƒã‚°æœ‰ç„¡
+GLOBAL_VAR_DEBUG=${FALSE}
+#GLOBAL_VAR_DEBUG=${TRUE}
 
 # ----------------------------------
 
-# ƒfƒoƒbƒO—pƒƒO
+# ãƒ‡ãƒãƒƒã‚°ç”¨ãƒ­ã‚°
 function my_echo {
   if [ ${GLOBAL_VAR_DEBUG} = ${TRUE} ] ; then
     echo '['`date +'%Y/%m/%d %H:%M:%S.%N'`']'$@
   fi
 }
 
-# ‹N“®—L–³ƒ`ƒFƒbƒN
+# èµ·å‹•æœ‰ç„¡ãƒã‚§ãƒƒã‚¯
 function on_processing_file {
-  my_echo "on_processing"
   if [ "$(ls ./${PREFIX_OF_FILENAME_ON_PROCESSING}* 2>/dev/null)" = '' ] ; then
     my_echo "on_processing false"
     GLOBAL_VAR_ON_PROCESSING=${FALSE}
@@ -34,15 +33,15 @@ function on_processing_file {
   fi
 }
 
-# ‹N“®Šm”F—pƒtƒ@ƒCƒ‹ì¬
-# ‹N“®’†‚É‰½“x‚à‹N“®‚ğs‚í‚È‚¢‚æ‚¤‚É‚·‚é‚½‚ß
+# èµ·å‹•ç¢ºèªç”¨ãƒ•ã‚¡ã‚¤ãƒ«ä½œæˆ
+# èµ·å‹•ä¸­ã«ä½•åº¦ã‚‚èµ·å‹•ã‚’è¡Œã‚ãªã„ã‚ˆã†ã«ã™ã‚‹ãŸã‚
 function create_flagfile_about_processing {
   my_echo "create_flagfile_about_processing $1"
   flagfilename=$1
   touch ${flagfilename}
 }
 
-# ‹N“®‚ª‚ ‚éê‡‚Í“®ìI—¹
+# èµ·å‹•ãŒã‚ã‚‹å ´åˆã¯å‹•ä½œçµ‚äº†
 function exit_if_on_processing {
   on_processing_file
   if [ ${GLOBAL_VAR_ON_PROCESSING} = ${TRUE} ] ; then
@@ -51,14 +50,16 @@ function exit_if_on_processing {
   fi
 }
 
-# ‹N“®Šm”Fƒtƒ@ƒCƒ‹íœ
+# èµ·å‹•ç¢ºèªãƒ•ã‚¡ã‚¤ãƒ«å‰Šé™¤
 function delete_flagfile_about_processing {
-  my_echo "delete_flagfile_about_processing $1"
-  flagfilename=$1
-  `rm ${SOURCE_DIR_PATH}/${flagfilename}`
+  if [ -e ${SOURCE_DIR_PATH}/${flagfilename} ]; then
+    my_echo "delete_flagfile_about_processing $1"
+    flagfilename=$1
+    `rm -f ${SOURCE_DIR_PATH}/${flagfilename}`
+  fi
 }
 
-# ‘O‚ÌƒGƒ‰[ƒtƒ@ƒCƒ‹ˆ³k
+# å‰ã®ã‚¨ãƒ©ãƒ¼ãƒ•ã‚¡ã‚¤ãƒ«åœ§ç¸®
 function zip_old_error_file {
   my_echo "zip_old_request_file"
   num_of_unziped_csv_files=`find ${ERROR_INPUT_DIR_PATH} -maxdepth 1 -type f -not -regex ${ZIPPED_FILE_NAME_PATTERN} | wc -l | sed -e 's/ //g'`
@@ -70,13 +71,20 @@ function zip_old_error_file {
   fi
 }
 
-#ƒGƒ‰[ƒtƒ@ƒCƒ‹‚ğƒRƒs[
+#ã‚¨ãƒ©ãƒ¼ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ã‚³ãƒ”ãƒ¼
 function copy_error_file {
+  my_echo "copy_error_file $1"
   input_csv_file_path=$1
-  copy_input_csv_file ${input_csv_file_path} ${ERROR_INPUT_DIR_PATH}/
+  if [ ! -e ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_csv_filename} ]; then
+    # å­˜åœ¨ã—ãªã„å ´åˆ
+    `cp ${input_csv_file_path} ${ERROR_INPUT_DIR_PATH}/`
+  else
+    # å­˜åœ¨å ´åˆã™ã‚‹å ´åˆ
+    `cp -f ${input_csv_file_path} ${ERROR_INPUT_DIR_PATH}/`
+  fi
 }
 
-# ƒtƒ@ƒCƒ‹‚ğƒfƒBƒŒƒNƒgƒŠ‚ÖˆÚ“®
+# ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã¸ç§»å‹•
 function move_input_csv_file {
   my_echo "move_input_csv_file $1 to $2"
   input_csv_file_path=$1
@@ -85,7 +93,7 @@ function move_input_csv_file {
   echo 'moved '${input_csv_file_path}' to '${output_path}
 }
 
-# ƒtƒ@ƒCƒ‹‚ğƒfƒBƒŒƒNƒgƒŠ‚ÖˆÚ“®(root)
+# ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã¸ç§»å‹•(root)
 function move_input_csv_file_sudo {
   my_echo "move_input_csv_file_sudo $1 to $2"
   input_csv_file_path=$1
