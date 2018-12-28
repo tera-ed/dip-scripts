@@ -40,15 +40,22 @@ cd $USERDIR
 
 	# クエリ実行
 	${MYSQL_DIR}mysql -vvv  --local_infile=1 -u ${MYSQL_USER} --password=${MYSQL_PASS} -h ${MYSQL_HOST} ${MYSQL_DB}<<EOF
+
+-- 対象テーブルのTRUNCATE
+-- TRUNCATE TABLE ${TMP_TBL};
+
+-- 対象テーブルのDELETE
+DELETE FROM ${TMP_TBL};
+
 -- CSVファイルをインポート
 LOAD DATA LOCAL INFILE '${FILE_PASS}'
-REPLACE INTO TABLE ${TMP_TBL}
+INTO TABLE ${TMP_TBL}
 FIELDS
   TERMINATED BY ','
   ENCLOSED BY '"'
   ESCAPED BY '\b'
   (
-  @media_code,@compe_media_code,@area_name,@amount,@post_start_date,@data_get_date,@plan,@space,@flag_count,@post_count,@media_type,@ad_type,@job_category,@job_class,@memo,@corporation_name,@zip_code,@addr_prefe,@address1,@address2,@address3,@tel,@section,@corporation_emp_name,@listed_marked,@employee_number,@capital_amount,@year_sales,@dispatch_flag,@introduction_flag,@fax,@business_content,@create_date,@claim_bp_code,@comp_no,@recruit_emp_form,@media_type_details
+  @media_code,@compe_media_code,@area_name,@amount,@post_start_date,@data_get_date,@plan,@space,@flag_count,@post_count,@media_type,@ad_type,@job_category,@job_class,@memo,@corporation_name,@zip_code,@addr_prefe,@address1,@address2,@address3,@tel,@section,@corporation_emp_name,@listed_marked,@employee_number,@capital_amount,@year_sales,@dispatch_flag,@introduction_flag,@fax,@business_content,@create_date,@claim_bp_code,@comp_no,@recruit_emp_form,@media_type_details,@corporation_code,@main_code,@sub_code,@job_id
   )
 SET
   media_code = nullif(@media_code, ''),

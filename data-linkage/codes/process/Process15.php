@@ -55,6 +55,12 @@ class Process15{
 				case preg_match('/MDA_Request/', $filename):
 					$PATH_NAME="RivalMedia";
 					break;
+				case preg_match('/MDA_Request/', $filename):
+					$PATH_NAME="RivalMedia";
+					break;
+				case preg_match('/FORCE_Result/', $filename):
+					$PATH_NAME="RivalMediaForce";
+					break;
 				default:
 					$this->logger->error("ファイルサーバ格納失敗　ファイル名：.".$filename);
 					$this->mail->sendMail();

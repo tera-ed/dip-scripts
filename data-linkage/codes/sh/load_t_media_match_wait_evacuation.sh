@@ -48,7 +48,7 @@ FIELDS
   ENCLOSED BY '"'
   ESCAPED BY '\b'
   (
-  @media_code,@compe_media_code,@area_name,@amount,@post_start_date,@data_get_date,@plan,@space,@flag_count,@post_count,@media_type,@ad_type,@job_category,@job_class,@memo,@corporation_name,@zip_code,@addr_prefe,@address1,@address2,@address3,@tel,@section,@corporation_emp_name,@listed_marked,@employee_number,@capital_amount,@year_sales,@dispatch_flag,@introduction_flag,@fax,@business_content,@create_date,@claim_bp_code,@comp_no,@recruit_emp_form,@media_type_details
+  @media_code,@compe_media_code,@area_name,@amount,@post_start_date,@data_get_date,@plan,@space,@flag_count,@post_count,@media_type,@ad_type,@job_category,@job_class,@memo,@corporation_name,@zip_code,@addr_prefe,@address1,@address2,@address3,@tel,@section,@corporation_emp_name,@listed_marked,@employee_number,@capital_amount,@year_sales,@dispatch_flag,@introduction_flag,@fax,@business_content,@create_date,@claim_bp_code,@comp_no,@recruit_emp_form,@media_type_details,@corporation_code,@main_code,@sub_code,@job_id
   )
 SET
   media_code = nullif(@media_code, ''),
@@ -87,7 +87,11 @@ SET
   claim_bp_code = nullif(@claim_bp_code, ''),
   comp_no = nullif(@comp_no, ''),
   recruit_emp_form = nullif(@recruit_emp_form, ''),
-  media_type_details = nullif(@media_type_details, '')
+  media_type_details = nullif(@media_type_details, ''),
+  corporation_code     = nullif(@corporation_code, ''),
+  main_code            = nullif(@main_code, ''),
+  sub_code             = nullif(@sub_code, ''),
+  job_id               = nullif(@job_id, '')
 ;
 
 -- ワーニングを出力する

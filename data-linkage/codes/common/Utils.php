@@ -56,14 +56,17 @@ function emptyToNull($data) {
  * @param string $path
  * @return array $fileList
  */
-function getMultipleCsv($filename, $path){
+function getMultipleCsv($filename, $path, $isCheck = true){
 	$fileList = array();
 	try{
 		$fileList = glob($path."*".$filename."*.csv");
-		// throw an exception if the specified file or
-		// a directory path that does not exist. (ERR_CODE: 602)
-		if(empty($fileList))
-			throw new Exception("File not found.", 602);
+		if ($isCheck) {
+			// throw an exception if the specified file or
+			// a directory path that does not exist. (ERR_CODE: 602)
+			if(empty($fileList)) {
+				throw new Exception("File not found.", 602);
+			}
+		}
 	} catch(Exception $e){
 		throw $e;
 	}

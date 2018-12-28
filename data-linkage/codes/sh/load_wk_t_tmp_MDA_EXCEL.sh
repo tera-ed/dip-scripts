@@ -55,7 +55,7 @@ FIELDS
   ESCAPED BY '\b'
 IGNORE 1 LINES
   (
-  @no,@media_name,@post_start_date,@business_content,@fuyokoumoku1,@corporation_name,@zip_code,@addr_prefe,@address1,@address2,@address3,@tel,@section,@corporation_emp_name,@listed_marked,@employee_number,@capital_amount,@year_sales,@space,@job_category,@job_class,@post_count,@dispatch_flag,@introduction_flag,@flag_count,@fax,@data_get_date,@fuyokoumoku2,@hp_url,@representative_name,@fuyokoumoku3,@fuyokoumoku4,@fuyokoumoku5,@fuyokoumoku6,@memo,@fuyokoumoku7,@fuyokoumoku8,@fuyokoumoku9,@fuyokoumoku10
+  @no,@media_name,@post_start_date,@business_content,@fuyokoumoku1,@corporation_name,@zip_code,@addr_prefe,@address1,@address2,@address3,@tel,@section,@corporation_emp_name,@listed_marked,@employee_number,@capital_amount,@year_sales,@space,@job_category,@job_class,@post_count,@dispatch_flag,@introduction_flag,@flag_count,@fax,@data_get_date,@fuyokoumoku2,@hp_url,@representative_name,@fuyokoumoku3,@fuyokoumoku4,@fuyokoumoku5,@fuyokoumoku6,@memo,@fuyokoumoku7,@fuyokoumoku8,@fuyokoumoku9,@fuyokoumoku10,@media_code,@corporation_code,@main_code,@sub_code,@job_id
   )
 SET
   no                   = nullif(@no, ''),
@@ -96,7 +96,12 @@ SET
   fuyokoumoku7         = nullif(@fuyokoumoku7, ''),
   fuyokoumoku8         = nullif(@fuyokoumoku8, ''),
   fuyokoumoku9         = nullif(@fuyokoumoku9, ''),
-  fuyokoumoku10        = nullif(@fuyokoumoku10, '')
+  fuyokoumoku10        = nullif(@fuyokoumoku10, ''),
+  media_code           = nullif(@media_code, ''),
+  corporation_code     = nullif(@corporation_code, ''),
+  main_code            = nullif(@main_code, ''),
+  sub_code             = nullif(@sub_code, ''),
+  job_id               = nullif(@job_id, '')
 ;
 
 -- ワーニングを出力する

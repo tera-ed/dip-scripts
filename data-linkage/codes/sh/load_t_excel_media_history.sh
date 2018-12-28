@@ -42,7 +42,7 @@ cd $USERDIR
 	${MYSQL_DIR}mysql -vvv  --local_infile=1 -u ${MYSQL_USER} --password=${MYSQL_PASS} -h ${MYSQL_HOST} ${MYSQL_DB}<<EOF
 -- CSVファイルをインポート
 LOAD DATA LOCAL INFILE '${FILE_PASS}'
-INTO TABLE ${TMP_TBL}
+REPLACE INTO TABLE ${TMP_TBL}
 FIELDS
   TERMINATED BY ','
   ENCLOSED BY '"'

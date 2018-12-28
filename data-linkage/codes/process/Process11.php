@@ -10,7 +10,8 @@
  */
 
 class Process11 {
-	private $logger, $db, $rds_db, $validate, $mail, $fieldTitles;
+	private $logger, $db, $rds_db, $validate, $mail, $csvUtils;
+	private $fieldTitles, $media_history_array, $header_data;
 	private $isError = false;
 
 	const WK_TABLE = 'wk_t_tmp_mda_excel';
@@ -44,6 +45,7 @@ class Process11 {
 		$this->logger = $logger;
 		$this->mail = new Mail();
 		$this->validate = new Validation($this->logger);
+		$this->csvUtils = new CSVUtils($this->logger);
 		$this->fieldTitles = array();
 
 	}
@@ -53,206 +55,71 @@ class Process11 {
 	 *
 	 */
 	function execProcess(){
-		global $MAX_COMMIT_SIZE, $IMPORT_FILENAME, $procNo;
+		global $EXPORT_FILENAME, $IMPORT_FILENAME, $procNo;
 		try{
 			//initialize Database
 			$this->db = new Database($this->logger);
 			$this->rds_db = new RDSDatabase($this->logger);
 
 			$path = getImportPath(true, '_11');
-			$files = getMultipleCsv($IMPORT_FILENAME[$procNo], $path);
-			
+			$files1 = getMultipleCsv($IMPORT_FILENAME[$procNo][0], $path, false);
+			$files2 = getMultipleCsv($IMPORT_FILENAME[$procNo][1], $path, false);
+			if(empty($files1) && empty($files2)) {
+				throw new Exception("File not found.", 602);
+			}
 			//initialize field_title list
 			// フィールドタイトル取得
 			$this->acquireExcelMediaItemsFieldTitle();
 
 			// すでに取り込み済みファイル名取得
-			$media_history_array = $this->db->getData("file_name",self::T_TABLE2,'file_name != ? GROUP BY file_name',array('初期データ移行'));
-			$media_history_array = array_column($media_history_array, null, 'file_name');
+			$this->media_history_array = $this->db->getData("file_name",self::T_TABLE2,'file_name != ? GROUP BY file_name',array('初期データ移行'));
+			$this->media_history_array = array_column($this->media_history_array, null, 'file_name');
 
 			//initialize night_job.keywords
 			// ナイトJOB取得 1：事業内容、2：職種、3：会社名毎にキーワード取得
 			$this->setNightJobKeywords();
-			$header = getDBField($this->db,self::WK_TABLE);
-			$limit = self::LIMIT;
-			foreach ($files as $fName) {
-				//csvファイルのヘッダー取得
-				// ファイルポインタを開く
-				//$this->logger->debug(" -- fopen before --".$fName);
-				$handle = fopen($fName, "r");
-				//$this->logger->debug(" -- fopen after --".$fName);
-				// 最初の一行目取得
-				$ret_csv = fgetcsv($handle, 1000, ",");
-				for ($i=0; $i < count($ret_csv); $i++) {
-					$csvheader[$i] = $ret_csv[$i];
+			$this->header_data = getDBField($this->db,self::WK_TABLE);
+			
+			//Acquire from: 「./tmp/csv/Import/after/(yyyymmdd_11)/TABAITAI_XXXXXXXXXXXXXX_.csv」
+			if (!empty($files1)) {
+				$csvCount = '0';
+				foreach ($files1 as $fName) {
+					$this->readTabaitaiCsvFile($path, $fName, $csvCount);
+					$csvCount += '1';
 				}
-				// 開いたファイルポインタを閉じる
-				fclose($handle);
-
-				// ファイル情報
-				$fileInfo = pathinfo($fName);
-
-				// ファイル名取得
-				$file_name = $fileInfo['basename'];
-
-				// すでに取り込み済みか確認 重複していればerrorログを出力
-				if(isset($media_history_array[$file_name])){
-					$this->logger->error("$file_name already exist in [Excel他媒体取込済] table");
-					$this->moveErrorTabaitaiCsv($fName);
-					continue;
-				}
-
-				// エリア名取得
-				$area_name = $this->getAreaName($file_name);
-
-				// OFFSETカウンター
-				$offsetCount = 0;
-				//Acquire from: 「./tmp/csv/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_.csv」
-				$this->db->beginTransaction();
-				
-				if(shellExec($this->logger, self::SHELL1, $fName) === 0){
-					$this->db->commit();
-					while ($offsetCount <=self::OFFSET_LIMIT) {
-						$offset = ($limit * $offsetCount);
-						$csvList = $this->db->getLimitOffsetData("*", self::WK_TABLE, null, array(), $limit, $offset);
-						if (count($csvList) === 0) {
-							// 配列の値がすべて空の時の処理
-							break;
-						}
-
-						$file_name1 = self::OUT_FILE_NAME1 . '_' . date("YmdHis") . '.csv';
-						$file_name2 = self::OUT_FILE_NAME2 . '_' . date("YmdHis") . '.csv';
-						$out_file1 = new SplFileObject($path . $file_name1, 'w');	// ファイル作成
-						$out_file2 = new SplFileObject($path . $file_name2, 'w');	// ファイル作成
-						$in_file_row_cnt	= 0;	// 入力ファイル行カウンター
-						$out_file_row_cnt1	= 0;	// 出力ファイル行カウンター
-						$out_file_row_cnt2	= 0;	// 出力ファイル行カウンター
-						foreach($csvList as $row => &$data){
-							if(($in_file_row_cnt % $MAX_COMMIT_SIZE) == 0){
-								$this->db->beginTransaction();
-							}
-							$tableData = emptyToNull($data);
-							$in_file_row_cnt++;
-							// メディア名を変更
-							$change_media_name = $this->getMediaName($tableData[$header[1]], $area_name);
-							$tableData[$header[1]] = $change_media_name;
-							if($this->validateData($tableData, $row, $header, $file_name)){
-								// t_excel_media_history CSV
-								$history_arry = $this->regExcelMediaHistory($tableData, $file_name);
-
-								# t_excel_media_info UPSERT
-								$this->upsertExcelMediaInfo($history_arry, $tableData[$header[0]]);
-
-								/* t_excel_media_history CSV出力 *****************************************/
-								$history_str	= implode('","', $history_arry);
-								$history_str	= '"' . $history_str . '"' . self::LF_CODE;
-								$out_file1->fwrite($history_str);
-								/* t_excel_media_history LOG出力 *****************************************/
-								++$out_file_row_cnt1;
-								if($out_file_row_cnt1 % self::OUTPUT_PROGRESS == 0){
-									$this->logger->debug($file_name1." [CSV出力件数 : " . $out_file_row_cnt1." ]");
-								}
-								// t_media_match_wait CSV
-								$ins_arry = $this->regMediaMatchWait($tableData, $history_arry[0], $area_name, $header, $file_name);
-								if (count($ins_arry) === 0) {
-									// csvデータ作成失敗
-									// 20170502ナイト系のメッセージレベルをErrorからInfoに変更
-									$this->logger->info("Process11 Failed to ".self::T_TABLE1." ナイト系 media_code:".$history_arry[0]." ".self::OUT_FILE_NAME2." of " . $file_name);
-									/* エラーになったときに入力ファイル行カウンターが max_commit_size に達しているか、ファイルの最後の行なら、コミットして次の処理へ */
-									if(($in_file_row_cnt % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($csvList)){
-										$this->db->commit();
-									}
-									continue;
-								}
-								/* t_media_match_wait CSV出力 *****************************************/
-								$ins_str	= implode('","', $ins_arry);
-								$ins_str	= '"' . $ins_str . '"' . self::LF_CODE;
-								$out_file2->fwrite($ins_str);
-								/* t_media_match_wait LOG出力 *****************************************/
-								++$out_file_row_cnt2;
-								if($out_file_row_cnt2 % self::OUTPUT_PROGRESS == 0){
-									$this->logger->debug($file_name2." [CSV出力件数 : " . $out_file_row_cnt2." ]");
-								}
-							}else{
-								$this->isError = true;
-								$this->logger->info("[".$file_name."] [Row : " . $in_file_row_cnt . " ] Not validateData");
-							}
-							/* 入力ファイル行カウンターが max_commit_size に達するたびにコミット */
-							if(($in_file_row_cnt % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($csvList)){
-								$this->db->commit();
-							}
-						}
-						$offsetCount++;
-						if($out_file_row_cnt1 > 0){
-							$this->logger->debug($file_name1." [CSV出力件数（合計） : " . $out_file_row_cnt1." ]");
-							$this->db->beginTransaction();
-							if(shellExec($this->logger, self::SHELL2, $out_file1->getRealPath()) === 0){
-								$this->db->commit();
-							} else {
-								// shell失敗
-								$this->db->rollback();
-								$this->logger->error("Error File : " . $out_file1->getRealPath());
-								throw new Exception("Process11 Failed to insert with " . self::SHELL2 . " to ".self::T_TABLE2);
-							}
-							unlink($out_file1->getRealPath());	// ファイル削除
-						}
-						if($out_file_row_cnt2 > 0){
-							$this->logger->debug($file_name2." [CSV出力件数（合計） : " . $out_file_row_cnt2." ]");
-							// t_media_match_wait
-							$this->db->beginTransaction();
-							if(shellExec($this->logger, self::SHELL3, $out_file2->getRealPath()) === 0){
-								$this->db->commit();
-							} else {
-								// shell失敗
-								$this->db->rollback();
-								$this->logger->error("Error File : " . $out_file2->getRealPath());
-								throw new Exception("Process11 Failed to insertor update with " . self::SHELL3 . " to ".self::T_TABLE1);
-							}
-							// t_media_match_wait_evacuation
-							$this->db->beginTransaction();
-							if(shellExec($this->logger, self::SHELL4, $out_file2->getRealPath()) === 0){
-								$this->db->commit();
-							} else {
-								// shell失敗
-								$this->db->rollback();
-								$this->logger->error("Error File : " . $out_file2->getRealPath());
-								throw new Exception("Process11 Failed to insertor update with " . self::SHELL4 . " to ".self::T_TABLE4);
-							}
-							unlink($out_file2->getRealPath());	// ファイル削除
-						}
-						
-					}
-				} else {
-					// shell失敗
-					$this->db->rollback();
-					$this->logger->error("Error File : " . $fName);
-					throw new Exception("Process11 Failed to insert with " . self::SHELL1 . " to " . self::WK_TABLE);
+			}
+			//Acquire from: 「./tmp/csv/Import/after/(yyyymmdd_11)/FORCE_XXXXXXXXXXXXXX_.csv」
+			if (!empty($files2)) {
+				$csvCount = '0';
+				$forceCsvFileName = $this->csvUtils->generateFilename($EXPORT_FILENAME[$procNo]);
+				foreach ($files2 as $fName) {
+					$this->readTabaitaiCsvFile($path, $fName, $csvCount, $forceCsvFileName);
+					$csvCount += '1';
 				}
 			}
 		} catch (PDOException $e1){ // database error
 			$this->logger->debug("Error found in database.");
-			$this->disconnect((isset($in_file_row_cnt) && $in_file_row_cnt > 0));
+			$this->logger->error($e2->getMessage());
+			$this->disconnect();
 			
-			$this->mail->sendMail();
+			$this->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
 			// write down the error contents in the error file
 			$this->logger->debug("Error found in process.");
 			$this->logger->error($e2->getMessage());
 			$this->disconnect();
+			
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
 			// and proceed to the next process number (ERR_CODE: 602)
 			// For system error pause process
 			if(602 != $e2->getCode()) {
-				$this->mail->sendMail();
+				$this->sendMail();
 				throw $e2;
 			}
 		}
-		if($this->isError){
-			// send mail if there is error
-			$this->mail->sendMail();
-		}
+		$this->sendMail($this->isError);
 		$this->disconnect();
 	}
 
@@ -270,13 +137,201 @@ class Process11 {
 		}
 	}
 
+	private function sendMail($isSendMail=true){
+		if($isSendMail) {
+			// send mail if there is error
+			//$this->mail->sendMail();
+		}
+	}
+
+	/**
+	 * Execute Process 11
+	 *
+	 */
+	function readTabaitaiCsvFile($path, $fName, $csvCount, $forceCsvFileName=""){
+		global $MAX_COMMIT_SIZE;
+		$limit = self::LIMIT;
+		$offsetCount = 0;
+		try{
+			//csvファイルのヘッダー取得
+			// ファイルポインタを開く
+			//$this->logger->debug(" -- fopen before --".$fName);
+			$handle = fopen($fName, "r");
+			//$this->logger->debug(" -- fopen after --".$fName);
+			// 最初の一行目取得
+			$ret_csv = fgetcsv($handle, 1000, ",");
+			for ($i=0; $i < count($ret_csv); $i++) {
+				$csvheader[$i] = $ret_csv[$i];
+			}
+			// 開いたファイルポインタを閉じる
+			fclose($handle);
+
+			// ファイル情報
+			$fileInfo = pathinfo($fName);
+
+			// ファイル名取得
+			$file_name = $fileInfo['basename'];
+
+			// すでに取り込み済みか確認 重複していればerrorログを出力
+			if(isset($this->media_history_array[$file_name])){
+				$this->logger->debug("$file_name already exist in [Excel他媒体取込済] table");
+				$this->moveErrorTabaitaiCsv($fName);
+				return;
+			}
+			// エリア名取得
+			$area_name = $this->getAreaName($file_name);
+			
+			$forceCsvResult = array();
+			$this->db->beginTransaction();
+			if(shellExec($this->logger, self::SHELL1, $fName) === 0){
+				$this->db->commit();
+				while ($offsetCount <=self::OFFSET_LIMIT) {
+					$offset = ($limit * $offsetCount);
+					$csvList = $this->db->getLimitOffsetData("*", self::WK_TABLE, null, array(), $limit, $offset);
+					if (count($csvList) === 0) {
+						// 配列の値がすべて空の時の処理
+						break;
+					}
+					
+					$file_name1 = self::OUT_FILE_NAME1 . '_' . date("YmdHis") . '.csv';
+					$file_name2 = self::OUT_FILE_NAME2 . '_' . date("YmdHis") . '.csv';
+					$out_file1 = new SplFileObject($path . $file_name1, 'w');	// ファイル作成
+					$out_file2 = new SplFileObject($path . $file_name2, 'w');	// ファイル作成
+					$in_file_row_cnt	= 0;	// 入力ファイル行カウンター
+					$out_file_row_cnt1	= 0;	// 出力ファイル行カウンター
+					$out_file_row_cnt2	= 0;	// 出力ファイル行カウンター
+					foreach($csvList as $row => &$data){
+						if(($in_file_row_cnt % $MAX_COMMIT_SIZE) == 0){
+							$this->db->beginTransaction();
+						}
+						$tableData = emptyToNull($data);
+						
+						$in_file_row_cnt++;
+						// メディア名を変更
+						$change_media_name = $this->getMediaName($tableData[$this->header_data[1]], $area_name);
+						$tableData[$this->header_data[1]] = $change_media_name;
+						if($this->validateData($tableData, $row, $file_name, $forceCsvFileName != "")){
+							// t_excel_media_history CSV
+							$history_arry = $this->regExcelMediaHistory($tableData, $file_name);
+
+							# t_excel_media_info UPSERT
+							$this->upsertExcelMediaInfo($history_arry, $tableData[$this->header_data[0]]);
+
+							/* t_excel_media_history CSV出力 *****************************************/
+							$history_str	= implode('","', $history_arry);
+							$history_str	= '"' . $history_str . '"' . self::LF_CODE;
+							$out_file1->fwrite($history_str);
+							/* t_excel_media_history LOG出力 *****************************************/
+							++$out_file_row_cnt1;
+							if($out_file_row_cnt1 % self::OUTPUT_PROGRESS == 0){
+								$this->logger->debug($file_name1." [CSV出力件数 : " . $out_file_row_cnt1." ]");
+							}
+							// t_media_match_wait CSV
+							$ins_arry = $this->regMediaMatchWait($tableData, $history_arry[0], $area_name, $file_name);
+							if (count($ins_arry) === 0) {
+								// csvデータ作成失敗
+								// 20170502ナイト系のメッセージレベルをErrorからInfoに変更
+								$this->logger->info("Process11 Failed to ".self::T_TABLE1." ナイト系 media_code:".$history_arry[0]." ".self::OUT_FILE_NAME2." of " . $file_name);
+								/* エラーになったときに入力ファイル行カウンターが max_commit_size に達しているか、ファイルの最後の行なら、コミットして次の処理へ */
+								if(($in_file_row_cnt % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($csvList)){
+									$this->db->commit();
+								}
+								continue;
+							}
+							
+							// force csv
+							$forceCsvResult = array_merge($forceCsvResult, array($this->forceCsvResultData($tableData)));
+							
+							/* t_media_match_wait CSV出力 *****************************************/
+							$ins_str	= implode('","', $ins_arry);
+							$ins_str	= '"' . $ins_str . '"' . self::LF_CODE;
+							$out_file2->fwrite($ins_str);
+							/* t_media_match_wait LOG出力 *****************************************/
+							++$out_file_row_cnt2;
+							if($out_file_row_cnt2 % self::OUTPUT_PROGRESS == 0){
+								$this->logger->debug($file_name2." [CSV出力件数 : " . $out_file_row_cnt2." ]");
+							}
+						}else{
+							$this->isError = true;
+							$this->logger->info("[".$file_name."] [Row : " . $in_file_row_cnt . " ] Not validateData");
+						}
+						/* 入力ファイル行カウンターが max_commit_size に達するたびにコミット */
+						if(($in_file_row_cnt % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($csvList)){
+							$this->db->commit();
+						}
+					}
+					$offsetCount++;
+					if($out_file_row_cnt1 > 0){
+						$this->logger->debug($file_name1." [CSV出力件数（合計） : " . $out_file_row_cnt1." ]");
+						$this->db->beginTransaction();
+						if(shellExec($this->logger, self::SHELL2, $out_file1->getRealPath()) === 0){
+							$this->db->commit();
+						} else {
+							// shell失敗
+							$this->db->rollback();
+							$this->logger->error("Error File : " . $out_file1->getRealPath());
+							throw new Exception("Process11 Failed to insert with " . self::SHELL2 . " to ".self::T_TABLE2);
+						}
+					}
+					unlink($out_file1->getRealPath());	// ファイル削除
+					
+					if($out_file_row_cnt2 > 0){
+						$this->logger->debug($file_name2." [CSV出力件数（合計） : " . $out_file_row_cnt2." ]");
+						if ($forceCsvFileName == "") {
+							// t_media_match_wait
+							$this->db->beginTransaction();
+							if(shellExec($this->logger, self::SHELL3, $out_file2->getRealPath()) === 0){
+								$this->db->commit();
+							} else {
+								// shell失敗
+								$this->db->rollback();
+								$this->logger->error("Error File : " . $out_file2->getRealPath());
+								throw new Exception("Process11 Failed to insertor update with " . self::SHELL3 . " to ".self::T_TABLE1);
+							}
+						}
+						// t_media_match_wait_evacuation
+						$this->db->beginTransaction();
+						if(shellExec($this->logger, self::SHELL4, $out_file2->getRealPath()) === 0){
+							$this->db->commit();
+						} else {
+							// shell失敗
+							$this->db->rollback();
+							$this->logger->error("Error File : " . $out_file2->getRealPath());
+							throw new Exception("Process11 Failed to insertor update with " . self::SHELL4 . " to ".self::T_TABLE4);
+						}
+					}
+					unlink($out_file2->getRealPath());	// ファイル削除
+				}
+			} else {
+				// shell失敗
+				$this->db->rollback();
+				$this->logger->error("Error File : " . $fName);
+				throw new Exception("Process11 Failed to insert with " . self::SHELL1 . " to " . self::WK_TABLE);
+			}
+			
+			if(!empty($forceCsvResult) && $forceCsvFileName != "") {
+				$this->csvUtils->exportCsvAddData($forceCsvFileName, $forceCsvResult, array('媒体コード','顧客コード'), $csvCount);
+			}
+		} catch (PDOException $e1){ // database error
+			$this->disconnect((isset($in_file_row_cnt) && $in_file_row_cnt > 0));
+			throw $e1;
+		} catch (Exception $e2){ // error
+			$this->disconnect();
+			throw $e2;
+		}
+	}
+
 	/**
 	 * validate csv data
 	 * Regarding the check contents, refer to sheet: 「Excel他媒体データエラーチェック」
-	 * @param $array List data from CSV
+	 * @param $data List data from CSV
+	 * @param $row List data from CSV
+	 * @param $filename String  CSV File Name
+	 * @param $isForce boolean ForceCSVCheck
 	 * @return boolean
 	 */
-	function validateData($data, $row, $header, $filename){
+	function validateData($data, $row, $filename, $isForce){
+		$header = $this->header_data;
 		$bool = true;
 		try {
 			$media_name=$header[1];
@@ -285,7 +340,7 @@ class Process11 {
 			if(!$this->isNull($data[$media_name])){
 				if($data[$media_name] == "town_work")$data[$media_name] = "TownWork";
 				if($this->rds_db->getDataCount(self::M_TABLE2, 'media_name=?', array($data[$media_name])) > 0){
-					$bool = $this->validate->execute($data, $this->fieldsChecking($header,$filename), $row, $filename, $header);
+					$bool = $this->validate->execute($data, $this->fieldsChecking($filename, $isForce), $row, $filename, $header);
 					$this->logger->info("[$filename] ROW[$row] :$media_name:$data[$media_name]"." exist on [他媒体マスター].");
 				}else{
 					$this->logger->error("[$filename] ROW[$row] :$media_name:$data[$media_name]"." do not exist on [他媒体マスターDBマッチ無].");
@@ -346,7 +401,6 @@ class Process11 {
 	 * @return boolean
 	 */
 	function isKeywordExist($data){
-
 		foreach($data as $kbn => $val){
 			foreach ($this->{'keywordsKbn'.$kbn} as $keyword) {
 				if (strpos($val, $keyword) !== FALSE) {
@@ -355,20 +409,6 @@ class Process11 {
 			}
 		}
 		return false;
-	}
-
-	/**
-	 * Filename check
-	 * @throws Exception
-	 * @return boolean true/false
-	 */
-	function isFilenameExist($filename){
-		if(!$this->isNull($filename)){
-			if($this->db->getDataCount(self::T_TABLE2, 'file_name=?', array($filename)) > 0){
-				$this->logger->error("$filename already exist in [Excel他媒体取込済] table");
-			}
-		}
-		return;
 	}
 
 	/**
@@ -562,13 +602,14 @@ class Process11 {
 	 * @param array $data
 	 */
 	function regExcelMediaHistory($list,$filename){
+		$header = $this->header_data;
 		$data = array();
 		try{
 			//Following the increment rule, increment media_code when new
-			$data[] = $this->db->getNextVal('MEDIA_CODE');
+			$data[] = $list[$header[39]];
 			//Acquired Excel(CSV) file name
 			$data[] = $filename;
-			//Bind the all the column data from 1～36 with each item 「'」, then
+			//Bind the all the column data from 1～42 with each item 「'」, then
 			//with the 「,」 separator, combine into string and register that value.
 			$data[] = "'".implode("','", $list) ."'";
 			$data[] = date("Y/m/d H:i:s");
@@ -609,7 +650,8 @@ class Process11 {
 	 * @param string $filename
 	 * @return array
 	 */
-	function regMediaMatchWait($val, $mediaCode, $area_name, $header, $file_name){
+	function regMediaMatchWait($val, $mediaCode, $area_name, $file_name){
+		$header = $this->header_data;
 		$data = array();
 		try{
 			// ナイトチェック 1：事業内容、2：職種、3：会社名毎にキーワード取得
@@ -680,11 +722,15 @@ class Process11 {
 			$data[]	= $val[$header[25]];							//FAX
 			$data[]	= $this->limitStrLen($val[$header[3]], 400);	//業態メモ(事業内容)
 			$data[]	= date("Y/m/d H:i:s");							//更新日
-			//20170501 add
 			$data[]	= $val[$header[36]];							//請求取引先CD
 			$data[]	= $val[$header[37]];							//COMP No
 			$data[]	= $val[$header[31]];							//募集雇用形態
 			$data[]	= $val[$header[38]];							//媒体種別詳細
+			//20181228 add
+			$data[]	= $val[$header[40]];							//顧客コード
+			$data[]	= $val[$header[41]];							//メイン企業判別コード
+			$data[]	= $val[$header[42]];							//サブ企業判別コード
+			$data[]	= $val[$header[43]];							//jobコード
 		}catch(Exception $e){
 			$this->logger->info("regMediaMatchWait");
 			throw $e;
@@ -697,30 +743,45 @@ class Process11 {
 	 * @return Array
 	 *
 	 */
-	function fieldsChecking($header,$filename){
-
+	function fieldsChecking($filename, $isForce){
+		$header = $this->header_data;
 		/*
-		 * CSV項目
+		* CSV項目
 		*  № 媒体名 掲載開始日 事業内容 職種 会社名 郵便番号 都道府県 住所1 住所2 住所3
 		*  TEL 担当部署 担当者名 上場市場 従業員数 資本金 売上高 広告スペース 大カテゴリ 小カテゴリ
 		* 掲載案件数 派遣 紹介 フラグ数 FAX データ取得日 メール URL 代表者名 設立日
 		* オプション(勤務形態等) オプション(アピール項目等) プレミアム画像 memo 掲載URL
+		* 媒体コード 顧客コード メイン企業判別コード サブ企業判別コード jobコード
 		*/
 
 		$fields = array();
-		for($i = 0; $i <= 26; $i++){
+		for($i = 0; $i <= 43; $i++){
 			$fields[$header[$i]] = '';
 		}
-		$fields[$header['2']] = "DATE";
-		$fields[$header['18']] = "NC";
-		$fields[$header['21']] = "D,L:10";
-		$fields[$header['24']] = "D,L:10";
-		$fields[$header['26']] = "DATE";
-
+		$fields[$header['2']] = "DATE";    // post_start_date
+		$fields[$header['18']] = "NC";     // space
+		$fields[$header['21']] = "D,L:10"; // post_count
+		$fields[$header['24']] = "D,L:10"; // flag_count
+		$fields[$header['26']] = "DATE";   // data_get_date
+		$fields[$header['41']] = "L:20";   // main_code
+		$fields[$header['42']] = "L:10";   // sub_code
+		$fields[$header['43']] = "L:20";   // job_id
+		
 		// リクナビ派遣特殊処理 フラグ数 28列目の[フラグスペース]を25列目の[フラグ数]へ移動させるためチェック追加
 		if(preg_match('/リクナビ派遣/', $filename)){
 			$fields[$header['27']] = "D,L:10";
 		}
+		
+		if ($isForce) {
+			// FORCE CSV
+			$fields[$header['39']] = "M,L:10"; // media_code
+			$fields[$header['40']] = "M,L:9";  // corporation_code
+		} else {
+			// TABAITAI
+			$fields[$header['39']] = "L:10"; // media_code
+			$fields[$header['40']] = "L:9";  // corporation_code
+		}
+		
 		return $fields;
 	}
 
@@ -858,6 +919,21 @@ class Process11 {
 		}
 		$res = shell_exec('mv -f '.escapeshellarg($file_path).' '.escapeshellarg($errorDirname));
 		$this->logger->info('moved '.$file_path.' to '.$errorDirname);
+	}
+
+	/**
+	 * register data to force csv
+	 * @param array $val csv row data
+	 * @return array
+	 */
+	function forceCsvResultData($val){
+		$header = $this->header_data;
+		$data = array();
+		
+		$data[]	= $val[$header[39]];	//媒体コード
+		$data[]	= $val[$header[40]];	//顧客コード
+		
+		return $data;
 	}
 }
 ?>
