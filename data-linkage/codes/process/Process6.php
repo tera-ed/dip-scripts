@@ -11,6 +11,8 @@ class Process6 {
 
 	const TABLE_1 = 'm_lbc';
 	const TABLE_2 = 'm_corporation';
+	const TABLE_3 = 'm_corporation_bak';
+
 	const LOCK_TABLE_1 = 't_lock_lbc_link';
 
 	const M_LBC = 0; // m_lbc
@@ -21,6 +23,7 @@ class Process6 {
 
 	const WK_B_TABLE1 = 'wk_t_tmp_crm_result';
 	const WK_B_TABLE2 = 'wk_t_tmp_lbc_sbndata';
+	const WK_B_TABLE3 = 'wk_t_lbc_crm_link';
 
 	const SHELL1 = 'load_wk_t_tmp_CRM_Result.sh';
 	const SHELL2 = 'load_wk_t_tmp_LBC_SBNDATA.sh';
@@ -223,7 +226,7 @@ class Process6 {
 					// Move the process to the next record
 					$this->logger->error("Error found in data [$pKey1 = $officeId]");
 				} else {
-					$recordCount1 = $this->recolin_db->getDataCount(self::TABLE_1, $pKey1."=?", $officeId);
+					$recordCount1 = $this->recolin_db->getDataCount(self::TABLE_1, $pKey1."=?", array($officeId));
 					if($recordCount1 > 0){// if search result != 0, delete the search record
 						$currentDate = date("Y/m/d H:i:s");
 						$lblParam["update_date"] = $currentDate;
@@ -240,7 +243,9 @@ class Process6 {
 							$tableList = emptyToNull($crm_esultRecord);
 							$corporation_code = $tableList[0][$pKey2];
 							// 顧客テーブルに存在するか確認
-							$corporationCount = $this->rds_db->getDataCount(self::TABLE_2, $pKey2."=?", array($corporation_code));
+							$corporationCount1 = $this->rds_db->getDataCount(self::TABLE_2, $pKey2."=?", array($corporation_code));
+							$corporationCount2 = $this->rds_db->getDataCount(self::TABLE_3, $pKey2."=?", array($corporation_code));
+							$corporationCount = $corporationCount1 + $corporationCount2;
 							// ロック顧客かどうか corporation_code で確認 20161004lock_add
 							$lockCount = $this->rds_db->getDataCount(self::LOCK_TABLE_1, $pKey2."=? and lock_status = 1 and delete_flag = false", array($corporation_code));
 							// 顧客が存在して、かつまだロックされていない顧客はm_corporationのoffice_idを更新 20161004lock_add
@@ -271,7 +276,9 @@ class Process6 {
 							}
 						} else {
 							// 処理中のoffice_idがまだ存在しない場合は顧客テーブルへ登録
-							$count = $this->rds_db->getDataCount(self::TABLE_2, $pKey1."=?", array($officeId));
+							$corporationCount1 = $this->rds_db->getDataCount(self::TABLE_2, $pKey1."=?", array($officeId));
+							$corporationCount2 = $this->rds_db->getDataCount(self::TABLE_3, $pKey1."=?", array($officeId));
+							$count = $corporationCount1 + $corporationCount2;
 							if($count == 0) {
 								$dataParam = $this->setInsertParams($corParam);
 								$result2_1 = $this->crm_db->insertData(self::TABLE_2, $dataParam);
@@ -282,35 +289,59 @@ class Process6 {
 									$this->logger->error("Failed to register ROW[$row] : [$pKey1 = $officeId] to $tbl");
 									throw new Exception("Process6 Failed to register ROW[$row] : [$pKey1 = $officeId] to $tbl");
 								}
+								$isNewCorp = false;
 								// office_idを使った新規登録分のレコードは、まだ名寄せ情報テーブルに無いはずなので、新規登録
 								// pkey1 -> office_id,  table2 -> m_corporation
 								// office_idで顧客コードを検索して、その組み合わせをwk_t_lbc_crm_linkに新規登録
 								$newCorp = $this->rds_db->getData("corporation_code",self::TABLE_2, $pKey1."=?", array($officeId));
-								$currentDate = date("Y/m/d H:i:s");
-								$insertData = array(
-									"corporation_code"=>$newCorp[0]["corporation_code"],
-									"office_id"=>$officeId,
-									"match_result"=>"A",
-									"match_detail"=>null,
-									"name_approach_code"=>$newCorp[0]["corporation_code"],
-									"name_approach_office_id"=>$officeId,
-									"current_data_flag"=>"1",
-									"lock_status"=>"0",
-									"create_date"=>$currentDate,
-									"update_date"=>$currentDate
-								);
-								$result3 = $this->db->insertData("wk_t_lbc_crm_link", $insertData);
-								if(!$result3){
-									$tbl =  "wk_t_lbc_crm_link";
-									$this->isError = true;
-									$this->logger->error("Failed to register ROW[$row] : [$pKey1 = $officeId][corporation_code = $newCorp] to $tbl");
-									throw new Exception("Process6 Failed to register ROW[$row] : [$pKey1 = $officeId][corporation_code = $newCorp] to $tbl");
+								if ($newCorp) {
+									// 存在する
+									$tbl =  self::TABLE_2;
+									$this->logger->debug("get corporation_code $tbl. [$pKey1 = $officeId]");
+									$isNewCorp = true;
+								} else {
+									$newCorp = $this->rds_db->getData("corporation_code",self::TABLE_3, $pKey1."=?", array($officeId));
+									if ($newCorp) {
+										// 存在する
+										$tbl =  self::TABLE_3;
+										$this->logger->debug("get corporation_code $tbl. [$pKey1 = $officeId]");
+										$isNewCorp = true;
+									}
 								}
-
+								
+								if ($isNewCorp) {
+									// 存在する
+									$currentDate = date("Y/m/d H:i:s");
+									$insertData = array(
+										"corporation_code"=>$newCorp[0]["corporation_code"],
+										"office_id"=>$officeId,
+										"match_result"=>"A",
+										"match_detail"=>null,
+										"name_approach_code"=>$newCorp[0]["corporation_code"],
+										"name_approach_office_id"=>$officeId,
+										"current_data_flag"=>"1",
+										"lock_status"=>"0",
+										"create_date"=>$currentDate,
+										"update_date"=>$currentDate
+									);
+									$result3_1 = $this->crm_db->insertData(self::WK_B_TABLE3, $insertData);
+									$result3_2 = $this->db->insertData(self::WK_B_TABLE3, $insertData);
+									if(!$result3_1){
+										$tbl =  self::WK_B_TABLE3;
+										$this->isError = true;
+										$this->logger->error("Failed to register ROW[$row] : [$pKey1 = $officeId][corporation_code = $newCorp] to $tbl");
+										throw new Exception("Process6 Failed to register ROW[$row] : [$pKey1 = $officeId][corporation_code = $newCorp] to $tbl");
+									}
+								} else {
+									// 存在しない
+									$tbl =  self::WK_B_TABLE3;
+									$this->isError = true;
+									$this->logger->error("Can not get corporation_code ROW[$row] : [$pKey1 = $officeId] to $tbl");
+									throw new Exception("Process6 Can not get corporation_code ROW[$row] : [$pKey1 = $officeId] to $tbl");
+								}
 							}else{
 								$tbl =  self::TABLE_2;
 								$this->logger->info("Failed すでにオフィスIDが登録されています。 ROW[$row] : [$pKey1 = $officeId] to $tbl");
-
 							}
 						}
 					} else {

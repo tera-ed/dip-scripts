@@ -456,6 +456,7 @@ class Process9 {
 		// ①wk_t_lbc_crm_linkから取得
 		$codeList1 = $this->rds_db->getData($condition1, self::WK_L_TABLE, $where, array($office_id));
 		if($codeList1){
+			$this->logger->debug("wk_t_lbc_crm_linkから取得 あり");
 			while($row = array_shift($codeList1)){
 				$code = $row[$condition1];
 				$value = array($condition1 => $code);
@@ -484,6 +485,7 @@ class Process9 {
 				}
 			}
 		} else {
+			$this->logger->debug("wk_t_lbc_crm_linkから取得 なし");
 			// 存在しない場合、顧客から取得
 			$corporationCodeList = $this->rds_db->getData("corporation_code",self::databaseGetValue2,$condition2."=?", array($office_id));
 			if(!$corporationCodeList){
@@ -530,10 +532,17 @@ class Process9 {
 		unset($tableList[0]['update_date']);
 		unset($tableList[0]['update_user_code']);
 		unset($tableList[0]['delete_flag']);
-		$newTableList = $tableList[0];
-		
+		$newTableList = $tableList[0];	
 		//$this->logger->debug(var_export($newTableList , true));
-		return $this->crm_db->insertUpdateData(self::databaseGetValue2, $newTableList, "corporation_code");
+		//return $this->crm_db->insertUpdateData(self::databaseGetValue2, $newTableList, "corporation_code");
+		
+		$dataCount = $this->crm_db->getDataCount(self::databaseGetValue2, "corporation_code=?", array($newTableList["corporation_code"]));
+		if($dataCount == 0 ){ // Data not found, insert
+			$this->logger->debug("corporation_code = ".$newTableList["corporation_code"]);
+			return $this->crm_db->insertData(self::databaseGetValue2, $newTableList);
+		} else { // Data found, update
+			return true;
+		}
 	}
 }
 ?>

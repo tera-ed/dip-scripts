@@ -10,19 +10,19 @@ source ./utils.sh
 
 # config
 
-# èª­è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ã‚¿ãƒ¼ãƒ³å
+# “Çƒtƒ@ƒCƒ‹ƒpƒ^[ƒ“–¼
 INPUT_FILE_NAME_PATTERN=${INPUT_FILE_NAME_PATTERN_TABAITAI}
-# ç›£è¦–ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
+# ŠÄ‹ƒfƒBƒŒƒNƒgƒŠ
 INPUT_DIR_PATH=${IMPORT_AFTER_DIR_PATH}
 
-# èµ·å‹•æœ‰ç„¡
+# ‹N“®—L–³
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
-# èµ·å‹•æœ‰ç„¡ãƒ‘ã‚¿ãƒ¼ãƒ³å
+# ‹N“®—L–³ƒpƒ^[ƒ“–¼
 PREFIX_OF_FILENAME_ON_PROCESSING=${CREATING_PROCESSING}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
-#ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«å
+#ƒƒOƒtƒ@ƒCƒ‹–¼
 LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
 # ----------------------------------
@@ -30,7 +30,7 @@ LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 # tey-catch Error
 trap catch ERR
 
-# ã‚¨ãƒ©ãƒ¼å‡ºåŠ›
+# ƒGƒ‰[o—Í
 function catch {
     echo CATCH
     end_time
@@ -38,26 +38,16 @@ function catch {
 
 # ----------------------------------
 
-# PHPãƒãƒƒãƒå‹•ä½œ
-function lbc_bach_start {
-  my_echo "lbc_bach_start"
-  bach_data=$(cd /home/teramgmt/temp/data-linkage-nayose/codes; /usr/bin/php lbc_batch_start.php 0,11,14,15,18,19)
-  if [ -z ${bach_data} ] ; then
-    echo "success lbc_batch_start.php"
-  else
-    echo $bach_data
-  fi
-}
-# ----------------------------------
 
-# çµ‚äº†å‹•ä½œ
+# I—¹“®ì
 function end_time {
   delete_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
+  
   echo 'end_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
   exit
 }
 
-# é–‹å§‹
+# ŠJn
 function main {
   echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
   
@@ -79,17 +69,17 @@ function main {
     num_of_csv_files=0
     input_dir_path=${INPUT_DIR_PATH}/`date +'%Y%m%d'`_11
     if [ -e ${input_dir_path}/${ERROR_DIR_NAME} ]; then
-      # ã‚¨ãƒ©ãƒ¼ãƒ•ã‚©ãƒ«ãƒ€æœ‰
+      # ƒGƒ‰[ƒtƒHƒ‹ƒ_—L
       num_of_csv_files=`find ${input_dir_path} -name "*.csv" -not -path "${input_dir_path}/${ERROR_DIR_NAME}/*" -type f -name "${INPUT_FILE_NAME_PATTERN}" | wc -l`
     elif [ -e ${input_dir_path} ]; then
       num_of_csv_files=`find ${input_dir_path} -name "*.csv" -type f -name "${INPUT_FILE_NAME_PATTERN}" | wc -l`
     fi
     
     if [ ${num_of_csv_files} = 0 ] ; then
-      # å­˜åœ¨ã—ãªã„å ´åˆ
+      # ‘¶İ‚µ‚È‚¢ê‡
       echo "no new csv files. exit."
     else
-      lbc_bach_start
+      tabaitai_torikomi_batch_start
     fi
   fi
   end_time
@@ -99,7 +89,7 @@ function main {
 # ----------------------------------
 TODAY_DIR=`date +'%Y%m%d'`
 if [ ! -e ${LOG_INPUT_DIR_PATH}/${TODAY_DIR} ]; then
-  # å­˜åœ¨ã—ãªã„å ´åˆ
+  # ‘¶İ‚µ‚È‚¢ê‡
   mkdir ${LOG_INPUT_DIR_PATH}/${TODAY_DIR}
 fi
 {

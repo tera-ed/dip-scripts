@@ -9,20 +9,20 @@ source ./file_path_config.sh
 # ----------------------------------
 # config
 
-# ãƒ­ã‚°ãƒ‡ãƒãƒƒã‚°æœ‰ç„¡
+# ƒƒOƒfƒoƒbƒO—L–³
 GLOBAL_VAR_DEBUG=${FALSE}
 #GLOBAL_VAR_DEBUG=${TRUE}
 
 # ----------------------------------
 
-# ãƒ‡ãƒãƒƒã‚°ç”¨ãƒ­ã‚°
+# ƒfƒoƒbƒO—pƒƒO
 function my_echo {
   if [ ${GLOBAL_VAR_DEBUG} = ${TRUE} ] ; then
     echo '['`date +'%Y/%m/%d %H:%M:%S.%N'`']'$@
   fi
 }
 
-# èµ·å‹•æœ‰ç„¡ãƒã‚§ãƒƒã‚¯
+# ‹N“®—L–³ƒ`ƒFƒbƒN
 function on_processing_file {
   if [ "$(ls ./${PREFIX_OF_FILENAME_ON_PROCESSING}* 2>/dev/null)" = '' ] ; then
     my_echo "on_processing false"
@@ -33,15 +33,15 @@ function on_processing_file {
   fi
 }
 
-# èµ·å‹•ç¢ºèªç”¨ãƒ•ã‚¡ã‚¤ãƒ«ä½œæˆ
-# èµ·å‹•ä¸­ã«ä½•åº¦ã‚‚èµ·å‹•ã‚’è¡Œã‚ãªã„ã‚ˆã†ã«ã™ã‚‹ãŸã‚
+# ‹N“®Šm”F—pƒtƒ@ƒCƒ‹ì¬
+# ‹N“®’†‚É‰½“x‚à‹N“®‚ğs‚í‚È‚¢‚æ‚¤‚É‚·‚é‚½‚ß
 function create_flagfile_about_processing {
   my_echo "create_flagfile_about_processing $1"
   flagfilename=$1
   touch ${flagfilename}
 }
 
-# èµ·å‹•ãŒã‚ã‚‹å ´åˆã¯å‹•ä½œçµ‚äº†
+# ‹N“®‚ª‚ ‚éê‡‚Í“®ìI—¹
 function exit_if_on_processing {
   on_processing_file
   if [ ${GLOBAL_VAR_ON_PROCESSING} = ${TRUE} ] ; then
@@ -50,41 +50,18 @@ function exit_if_on_processing {
   fi
 }
 
-# èµ·å‹•ç¢ºèªãƒ•ã‚¡ã‚¤ãƒ«å‰Šé™¤
+# ‹N“®Šm”Fƒtƒ@ƒCƒ‹íœ
 function delete_flagfile_about_processing {
-  if [ -e ${SOURCE_DIR_PATH}/${flagfilename} ]; then
+  if [ ${GLOBAL_VAR_ON_PROCESSING} = ${FALSE} ] ; then
     my_echo "delete_flagfile_about_processing $1"
-    flagfilename=$1
-    `rm -f ${SOURCE_DIR_PATH}/${flagfilename}`
+    flagfilepath=${SOURCE_DIR_PATH}/$1
+    if [ -e ${flagfilepath} ]; then
+      `rm -rf ${flagfilepath}`
+    fi
   fi
 }
 
-# å‰ã®ã‚¨ãƒ©ãƒ¼ãƒ•ã‚¡ã‚¤ãƒ«åœ§ç¸®
-function zip_old_error_file {
-  my_echo "zip_old_request_file"
-  num_of_unziped_csv_files=`find ${ERROR_INPUT_DIR_PATH} -maxdepth 1 -type f -not -regex ${ZIPPED_FILE_NAME_PATTERN} | wc -l | sed -e 's/ //g'`
-
-  if [ ${num_of_unziped_csv_files} = 0 ] ; then
-    my_echo "no need to zip error.csv"
-  else
-    `find ${ERROR_INPUT_DIR_PATH} -maxdepth 1 -type f -not -regex ${ZIPPED_FILE_NAME_PATTERN} | xargs gzip -f`
-  fi
-}
-
-#ã‚¨ãƒ©ãƒ¼ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ã‚³ãƒ”ãƒ¼
-function copy_error_file {
-  my_echo "copy_error_file $1"
-  input_csv_file_path=$1
-  if [ ! -e ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_csv_filename} ]; then
-    # å­˜åœ¨ã—ãªã„å ´åˆ
-    `cp ${input_csv_file_path} ${ERROR_INPUT_DIR_PATH}/`
-  else
-    # å­˜åœ¨å ´åˆã™ã‚‹å ´åˆ
-    `cp -f ${input_csv_file_path} ${ERROR_INPUT_DIR_PATH}/`
-  fi
-}
-
-# ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã¸ç§»å‹•
+# ƒtƒ@ƒCƒ‹‚ğƒfƒBƒŒƒNƒgƒŠ‚ÖˆÚ“®
 function move_input_csv_file {
   my_echo "move_input_csv_file $1 to $2"
   input_csv_file_path=$1
@@ -93,13 +70,49 @@ function move_input_csv_file {
   echo 'moved '${input_csv_file_path}' to '${output_path}
 }
 
-# ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã¸ç§»å‹•(root)
+# ƒtƒ@ƒCƒ‹‚ğƒfƒBƒŒƒNƒgƒŠ‚ÖˆÚ“®(root)
 function move_input_csv_file_sudo {
   my_echo "move_input_csv_file_sudo $1 to $2"
   input_csv_file_path=$1
   output_path=$2
   `sudo -i mv -f ${input_csv_file_path} ${output_path}`
   echo 'moved '${input_csv_file_path}' to '${output_path}
+}
+
+# ----------------------------------
+
+# ƒ}ƒbƒ`ƒ“ƒOŒ‹‰Ê–¼Šñ‚¹“‡ LBCSBN®Œ` ©“®‰»(P25)
+function maching_nayose_lbcsbn_batch_start {
+  my_echo "nayose_bach_start"
+  
+  bach_data=$(cd /home/teramgmt/temp/data-linkage-nayose/codes; /usr/bin/php nayose_batch_start.php 0,25,35)
+  if [ -z ${bach_data} ] ; then
+    echo "success nayose_batch_start.php"
+  else
+    echo '[ERROR] '$bach_data
+  fi
+}
+
+# ‘¼”}‘Ìæ‚Ì‚İ ©“®‰»(P11)
+function tabaitai_torikomi_batch_start {
+  my_echo "lbc_bach_start"
+  bach_data=$(cd /home/teramgmt/temp/data-linkage-nayose/codes; /usr/bin/php lbc_batch_start.php 0,11,14,15,18,19)
+  if [ -z ${bach_data} ] ; then
+    echo "success lbc_batch_start.php"
+  else
+    echo '[ERROR] '$bach_data
+  fi
+}
+
+# Ÿ¢‘ãƒ}ƒbƒ`ƒ“ƒOŒ‹‰Êæ ©“®‰»(P9)
+function lbc_maching_batch_start {
+  my_echo "lbc_bach_start"
+  bach_data=$(cd /home/teramgmt/temp/data-linkage-nayose/codes; /usr/bin/php lbc_batch_start.php 0,9,20)
+  if [ -z ${bach_data} ] ; then
+    echo "success lbc_batch_start.php"
+  else
+    echo '[ERROR] '$bach_data
+  fi
 }
 
 # ----------------------------------

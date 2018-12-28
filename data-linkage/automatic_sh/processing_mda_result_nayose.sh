@@ -10,7 +10,7 @@ source ./utils.sh
 
 # config
 
-# Ë™≠Ëæº„Éï„Ç°„Ç§„É´„Éë„Çø„Éº„É≥Âêç
+# ì«çûÉtÉ@ÉCÉãÉpÉ^Å[Éìñº
 INPUT_FILE_NAME_PATTERN1=${INPUT_FILE_NAME_PATTERN_MAPING_MULTIPLE}
 INPUT_FILE_NAME_PATTERN2=${INPUT_FILE_NAME_PATTERN_MAPING_UNIQUE}
 
@@ -22,17 +22,17 @@ INPUT_TITLE_HIZUKE_SIZE=14
 OUTPUT_FILE_NAME_PATTERN1=${OUTPUT_FILE_NAME_PATTERN_MAPING_MULTIPLE}
 OUTPUT_FILE_NAME_PATTERN2=${OUTPUT_FILE_NAME_PATTERN_MAPING_UNIQUE}
 
-# Áõ£Ë¶ñ„Éá„Ç£„É¨„ÇØ„Éà„É™
+# äƒéãÉfÉBÉåÉNÉgÉä
 INPUT_DIR_PATH=${MAPING_RESPONSE_DIR_PATH}
 
-# Ëµ∑ÂãïÊúâÁÑ°
+# ãNìÆóLñ≥
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
-# Ëµ∑ÂãïÊúâÁÑ°„Éë„Çø„Éº„É≥Âêç
+# ãNìÆóLñ≥ÉpÉ^Å[Éìñº
 PREFIX_OF_FILENAME_ON_PROCESSING=${MDA_RESULT_NAYOSE_PROCESSING}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
-#„É≠„Ç∞„Éï„Ç°„Ç§„É´Âêç
+#ÉçÉOÉtÉ@ÉCÉãñº
 LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
 # ----------------------------------
@@ -40,7 +40,7 @@ LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 # tey-catch Error
 trap catch ERR
 
-# „Ç®„É©„ÉºÂá∫Âäõ
+# ÉGÉâÅ[èoóÕ
 function catch {
     echo CATCH
     end_time
@@ -48,43 +48,29 @@ function catch {
 
 # ----------------------------------
 
-# ÂêçÂØÑ„ÅõPHP„Éê„ÉÉ„ÉÅÂãï‰Ωú
-function nayose_bach_start {
-  my_echo "nayose_bach_start"
-  
-  bach_data=$(cd /home/teramgmt/temp/data-linkage-nayose/codes; /usr/bin/php nayose_batch_start.php 0,25,35)
-  if [ -z ${bach_data} ] ; then
-    echo "success nayose_batch_start.php"
-  else
-    echo $bach_data
-  fi
-}
-
-# ----------------------------------
-
-#„Éï„Ç°„Ç§„É´„Çí„Ç≥„Éî„Éº
+#ÉtÉ@ÉCÉãÇÉRÉsÅ[
 function copy_gunzip_csv_file {
   my_echo "copy_gunzip_csv_file $1"
   input_file_path=$1
-
-  # „Éï„Ç°„Ç§„É´Âêç
+  
+  # ÉtÉ@ÉCÉãñº
   input_csv_filename=`basename ${input_file_path}`
   if [ ! -e ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_csv_filename} ]; then
-    # Â≠òÂú®„Åó„Å™„ÅÑÂ†¥Âêà
+    # ë∂ç›ÇµÇ»Ç¢èÍçá
     `cp ${input_file_path} ${NAYOSE_IMPORT_AFTER_DIR_PATH}/`
   else
-    # Â≠òÂú®Â†¥Âêà„Åô„ÇãÂ†¥Âêà
+    # ë∂ç›èÍçáÇ∑ÇÈèÍçá
     `cp -f ${input_file_path} ${NAYOSE_IMPORT_AFTER_DIR_PATH}/`
   fi
-  # Ëß£Âáç
+  # âìÄ
   `gunzip -f ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_csv_filename}`
 }
 
-# „Éû„ÉÉ„ÉÅ„É≥„Ç∞„Éï„Ç°„Ç§„É´ÁµêÊûú„ÇíÁßªÂãï
+# É}ÉbÉ`ÉìÉOÉtÉ@ÉCÉãåãâ Çà⁄ìÆ
 function maching_csv_file {
   my_echo "process_csv_file_copy"
   if [ ! -e ${INPUT_DIR_PATH} ]; then
-    # Â≠òÂú®„Åó„Å™„ÅÑÂ†¥Âêà
+    # ë∂ç›ÇµÇ»Ç¢èÍçá
     echo "no maching response directory. exit."
     end_time
   fi
@@ -93,12 +79,14 @@ function maching_csv_file {
   if [ ${num_of_csv_files1} = 0 ] ; then
     my_echo 'no *.csv files. exit.'
   else
-    # CSV„Éï„Ç°„Ç§„É´Ê§úÁ¥¢
-    input_csv_fullpath_array=`find ${INPUT_DIR_PATH} -name "*.csv" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" | sort`
+    # CSVÉtÉ@ÉCÉãåüçı
+    input_csv_fullpath_array=`find ${INPUT_DIR_PATH} -name "*.csv" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f | sort`
     for input_csv_fullpath in $input_csv_fullpath_array; do
-      # ÂúßÁ∏Æ
-      `sudo -i gzip -f ${input_csv_fullpath}`
-      my_echo 'gzip '${input_csv_fullpath}
+      if [ -e ${input_csv_fullpath} ]; then
+        # à≥èk
+        `sudo -i gzip -f ${input_csv_fullpath}`
+        my_echo 'gzip '${input_csv_fullpath}
+      fi
     done
   fi
   
@@ -110,17 +98,17 @@ function maching_csv_file {
   
   TODAY_DIR=`date +'%Y%m%d'`
   if [ ! -e ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${TODAY_DIR} ]; then
-    # Â≠òÂú®„Åó„Å™„ÅÑÂ†¥Âêà
+    # ë∂ç›ÇµÇ»Ç¢èÍçá
     mkdir ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${TODAY_DIR}
   fi
   
   is_nayose_bach_start=${FALSE}
-  # multipleÂúßÁ∏Æ„Éï„Ç°„Ç§„É´Âêç
+  # multipleà≥èkÉtÉ@ÉCÉãåüçı
   input_multiple_gz_fullpath_array=`find ${INPUT_DIR_PATH} -name "*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f -name "${INPUT_FILE_NAME_PATTERN1}*" | sort`
   for input_multiple_gz_fullpath in $input_multiple_gz_fullpath_array; do
-    # multipleÔøΩÔøΩÔøΩkÔøΩtÔøΩ@ÔøΩCÔøΩÔøΩÔøΩÔøΩ
+    # multipleà≥èkÉtÉ@ÉCÉãñº
     input_multiple_gz_filename=`basename ${input_multiple_gz_fullpath}`
-    # Êó•‰ªòÂêç
+    # ì˙ïtñº
     hizuke_name=${input_multiple_gz_filename:INPUT_TITLE_NAME_SIZE1:INPUT_TITLE_HIZUKE_SIZE}
     
     num_of_maching_csv_files2=`find ${INPUT_DIR_PATH} -name "*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f -name "${INPUT_FILE_NAME_PATTERN2}${hizuke_name}*" | wc -l`
@@ -128,60 +116,48 @@ function maching_csv_file {
       echo "no maching csv files. exit."${INPUT_FILE_NAME_PATTERN2}${hizuke_name}".csv.gz"
       continue
     fi
-    # ÂØæÂøú„Åô„ÇãuniqueÂúßÁ∏Æ„Éï„Ç°„Ç§„É´Ê§úÁ¥¢
+    # ëŒâûÇ∑ÇÈuniqueà≥èkÉtÉ@ÉCÉãåüçı
     input_unique_gz_fullpath=`find ${INPUT_DIR_PATH} -name "*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f -name "${INPUT_FILE_NAME_PATTERN2}${hizuke_name}*" | sort | head -n 1`
 
-    # ÂúßÁ∏Æ„Éï„Ç°„Ç§„É´„Çí„Ç≥„Éî„ÉºËß£ÂáçÁßªÂãï
+    # à≥èkÉtÉ@ÉCÉãÇÉRÉsÅ[âìÄà⁄ìÆ
     copy_gunzip_csv_file ${input_multiple_gz_fullpath}
     copy_gunzip_csv_file ${input_unique_gz_fullpath}
-    # ÂúßÁ∏Æ„Éï„Ç°„Ç§„É´„Çí„Éê„ÉÉ„ÇØ„Ç¢„ÉÉ„Éó„Å∏
+    # à≥èkÉtÉ@ÉCÉãÇÉoÉbÉNÉAÉbÉvÇ÷
     move_input_csv_file_sudo ${input_multiple_gz_fullpath} ${MAPING_RESPONSE_OLD_DIR_PATH}/
     move_input_csv_file_sudo ${input_unique_gz_fullpath} ${MAPING_RESPONSE_OLD_DIR_PATH}/
-    # CSV„Éï„Ç°„Ç§„É´Âêç
+    # CSVÉtÉ@ÉCÉãñº
     input_multiple_gz_filename_not_gz=`basename ${input_multiple_gz_fullpath} .gz`
     input_unique_gz_filename_not_gz=`basename ${input_unique_gz_fullpath} .gz`
-    # CSV„Éï„Ç°„Ç§„É´„ÇíÂØæÂøú„Éï„Ç©„É´„ÉÄ„Å∏ÁßªÂãï
+    # CSVÉtÉ@ÉCÉãÇëŒâûÉtÉHÉãÉ_Ç÷à⁄ìÆ
     move_input_csv_file ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_multiple_gz_filename_not_gz} ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${TODAY_DIR}/${hizuke_name}${OUTPUT_FILE_NAME_PATTERN1}
     move_input_csv_file ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_unique_gz_filename_not_gz} ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${TODAY_DIR}/${hizuke_name}${OUTPUT_FILE_NAME_PATTERN2}
-
+    
     is_nayose_bach_start=${TRUE}
   done
   
   if [ ${is_nayose_bach_start} = ${TRUE} ] ; then
-    nayose_bach_start
+    maching_nayose_lbcsbn_batch_start
   fi
 }
 
 # ----------------------------------
 
-# ÁµÇ‰∫ÜÂãï‰Ωú
+# èIóπìÆçÏ
 function end_time {
   delete_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
+  
   echo 'end_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
   exit
 }
 
-# ÈñãÂßã
+# äJén
 function main {
   echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  
-  is_processing=${FALSE}
-  if [ "$(ls ./${MDA_RESULT_INPORT_PROCESSING}* 2>/dev/null)" = '' ] ; then
-    if [ "$(ls ./${MDA_RESULT_NAYOSE_PROCESSING}* 2>/dev/null)" = '' ] ; then
-      is_processing=${TRUE}
-    else
-      echo "during startup processing_mda_result_nayose.sh. exit."
-    fi
-  else
-    echo "during startup processing_mda_result_import.sh. exit."
-  fi
-  
-  if [ ${is_processing} = ${TRUE} ] ; then
-    exit_if_on_processing
-    create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
 
-    maching_csv_file
-  fi
+  exit_if_on_processing
+  create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
+
+  maching_csv_file
   end_time
 }
 
@@ -189,7 +165,7 @@ function main {
 # ----------------------------------
 TODAY_DIR=`date +'%Y%m%d'`
 if [ ! -e ${LOG_INPUT_DIR_PATH}/${TODAY_DIR} ]; then
-  # Â≠òÂú®„Åó„Å™„ÅÑÂ†¥Âêà
+  # ë∂ç›ÇµÇ»Ç¢èÍçá
   mkdir ${LOG_INPUT_DIR_PATH}/${TODAY_DIR}
 fi
 {

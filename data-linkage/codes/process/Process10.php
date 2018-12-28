@@ -14,6 +14,7 @@ class Process10 {
 	private $isError = false;
 
 	const databaseTable = "m_corporation";
+	const databaseTableBak = "m_corporation_bak";
 
 	const WK_B_TABLE = 'wk_t_tmp_kng_result';
 	const SHELL = 'load_wk_t_tmp_KNG_Result.sh';
@@ -178,7 +179,6 @@ class Process10 {
 			$office_id = $header[3];
 			foreach ($list as $row => &$data){
 				if(($counter % $MAX_COMMIT_SIZE) == 0){
-					$this->db->beginTransaction();
 					$this->crm_db->beginTransaction();
 				}
 				$validRow = $this->errorChecking($data,$row,$csv,$header);
@@ -186,18 +186,29 @@ class Process10 {
 					$key = array($data[$office_id]);
 					//Search for item: 「LBC」=「m_corporation.office_id」 record
 					$dbResult = $this->rds_db->getDataCount(self::databaseTable,"office_id=?",$key);
-					$this->logger->debug("Database Result for office_id = ". $data[$office_id] ." is ".$dbResult);
-					// If the search results are not 0件 (0 records)
 					if($dbResult > 0){
-						$m_corp_officeList = $this->updateAction($data[$office_id], $data[$kng_in_keiflg], $m_corp_officeList);
+						$this->logger->debug("Database Result for office_id = ". $data[$office_id] ." is ".$dbResult);
 					} else {
-						$this->logger->error("office_id = ".$data[$office_id]." No match found in ".self::databaseTable);
-						throw new Exception("Process10 office_id = ".$data[$office_id]." No match found in ".self::databaseTable);
+						// 存在しない場合、m_corporation_bakにから取得
+						$mRecord = $this->rds_db->getData('*',self::databaseTableBak, "office_id=?", $key);
+						if(!empty($mRecord)){
+							$result = $this->insertUpdateCorporation($mRecord);
+							if(!$result){
+								$this->logger->error("Failed to insert [office_id : ".$data[$office_id]."] to ". self::databaseTable);
+								throw new Exception("Process10 Failed to insert [office_id : ".$data[$office_id]."]  to ". self::databaseTable);
+							} else {
+								$this->logger->info("Inserting row [office_id : ".$data[$office_id]."]  to ". self::databaseTable);
+							}
+						}else{
+							// エラー
+							$this->logger->error("office_id = ".$data[$office_id]." No match found in ".self::databaseTable);
+							throw new Exception("Process10 office_id = ".$data[$office_id]." No match found in ".self::databaseTable);
+						}
 					}
+					$m_corp_officeList = $this->updateAction($data[$office_id], $data[$kng_in_keiflg], $m_corp_officeList);
 					$counter++;
 				}
 				if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row+1) == sizeof($list)){
-					$this->db->commit();
 					$this->crm_db->commit();
 				}
 
@@ -271,8 +282,7 @@ class Process10 {
 			$condition = "office_id = ?";
 			$params = array($officeId);
 			//update data
-			$result = $this->db->updateData(self::databaseTable, $updateFields,$condition, $params);
-			$result2 = $this->crm_db->updateData(self::databaseTable, $updateFields,$condition, $params);
+			$result = $this->crm_db->updateData(self::databaseTable, $updateFields,$condition, $params);
 			
 			if(!$result){
 				$this->isError = true;
@@ -287,6 +297,27 @@ class Process10 {
 			$this->logger->info("掲載禁止フラグが同一なので更新しない [office_id = $officeId]"."[post_ban_flag = $postBanFlag]");
 		}
 		return $m_corp_officeList;
+	}
+	
+	/**
+	 * insert update m_corporation
+	 * @return array mRecord 
+	 */
+	function insertUpdateCorporation($mRecord){
+		// m_corporationに新規作成
+		
+		//prepare the update fields
+		$tableList = emptyToNull($mRecord);
+		
+		unset($tableList[0]['create_date']);
+		unset($tableList[0]['create_user_code']);
+		unset($tableList[0]['update_date']);
+		unset($tableList[0]['update_user_code']);
+		unset($tableList[0]['delete_flag']);
+		$newTableList = $tableList[0];
+		
+		//$this->logger->debug(var_export($newTableList , true));
+		return $this->crm_db->insertUpdateData(self::databaseTable, $newTableList, "corporation_code");
 	}
 }
 ?>
