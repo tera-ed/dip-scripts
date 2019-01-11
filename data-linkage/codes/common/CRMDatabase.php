@@ -357,7 +357,7 @@ class CRMDatabase{
 				$set .= "`$key`=$data, ";
 			}
 		}
-		//if table starts with 'm_'
+		//if table starts with 'm_' or 't_media_mass'
 		if(strpos($table, 'm_') === 0 
 		|| in_array($table, array('t_media_mass'))){
 			$currentDate = date("Y/m/d H:i:s");

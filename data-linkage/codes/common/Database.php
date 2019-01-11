@@ -27,7 +27,8 @@ class Database{
 			$this->logger->info('Connected successfully BATCH DB');
 		}
 		catch(Exception $e){
-			$this->logger->error("Connection failed: " . $e->getMessage());
+			//$this->logger->error("Connection failed: " . $e->getMessage());
+			$this->logger->error($e);
 			throw $e;
 		}
 		return $conn;
@@ -309,9 +310,8 @@ class Database{
 		global $SYSTEM_USER, $RECOLIN_DB;
 		$addedFields = array();
 		$currentDate = date("Y/m/d H:i:s");
-		//if table starts with 'm_' or 't_media_mass'
+		//if table starts with 'm_' 
 		if(strpos($table, 'm_') === 0 
-		|| in_array($table, array('t_media_mass'))
 		|| strpos($table, $RECOLIN_DB['db_name'].".".'m_') === 0){
 			if($table == 'm_obic_application'){
 				$currentDate = date("Y/m/d");
@@ -363,7 +363,7 @@ class Database{
 				$set .= "`$key`=$data, ";
 			}
 		}
-		//if table starts with 'm_'
+		//if table starts with 'm_' 
 		if(strpos($table, 'm_') === 0
 		|| strpos($table, $RECOLIN_DB['db_name'].".".'m_') === 0){
 			$currentDate = date("Y/m/d H:i:s");

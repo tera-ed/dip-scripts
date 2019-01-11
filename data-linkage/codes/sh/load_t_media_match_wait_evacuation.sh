@@ -88,10 +88,10 @@ SET
   comp_no = nullif(@comp_no, ''),
   recruit_emp_form = nullif(@recruit_emp_form, ''),
   media_type_details = nullif(@media_type_details, ''),
-  corporation_code     = nullif(@corporation_code, ''),
-  main_code            = nullif(@main_code, ''),
-  sub_code             = nullif(@sub_code, ''),
-  job_id               = nullif(@job_id, '')
+  corporation_code = nullif(@corporation_code, ''),
+  main_code = nullif(@main_code, ''),
+  sub_code = nullif(@sub_code, ''),
+  job_id = nullif(@job_id, '')
 ;
 
 -- ワーニングを出力する

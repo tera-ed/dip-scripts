@@ -10,78 +10,72 @@ source ./utils.sh
 
 # config
 
-# “Çƒtƒ@ƒCƒ‹ƒpƒ^[ƒ“–¼
-INPUT_FILE_NAME_PATTERN=${INPUT_FILE_NAME_PATTERN_TABAITAI}
-# ŠÄ‹ƒfƒBƒŒƒNƒgƒŠ
-INPUT_DIR_PATH=${IMPORT_AFTER_DIR_PATH}
+# èª­è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ã‚¿ãƒ¼ãƒ³å
+#INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI})
+INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_PATTERN_FORCE})
 
-# ‹N“®—L–³
+# èµ·å‹•æœ‰ç„¡
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
-# ‹N“®—L–³ƒpƒ^[ƒ“–¼
-PREFIX_OF_FILENAME_ON_PROCESSING=${CREATING_PROCESSING}
+# èµ·å‹•æœ‰ç„¡ãƒ‘ã‚¿ãƒ¼ãƒ³å
+PREFIX_OF_FILENAME_ON_PROCESSING=${PROCESSING1}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
-#ƒƒOƒtƒ@ƒCƒ‹–¼
+#ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«å
 LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
-# ----------------------------------
+#PHPãƒãƒƒãƒèµ·å‹•
+IS_LBC_BACH_START=${FALSE}
 
-# tey-catch Error
-trap catch ERR
-
-# ƒGƒ‰[o—Í
-function catch {
-    echo CATCH
-    end_time
-}
+#P11ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
+MOVE_TODAY_DIR=${IMPORT_AFTER_DIR_PATH}/`date +'%Y%m%d'`"_11"
 
 # ----------------------------------
 
-
-# I—¹“®ì
-function end_time {
-  delete_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
-  
-  echo 'end_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  exit
-}
-
-# ŠJn
+# é–‹å§‹
 function main {
   echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  
+  exit_if_on_processing
+  create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
+
   is_processing=${FALSE}
-  if [ "$(ls ./${MDA_RESULT_INPORT_PROCESSING}* 2>/dev/null)" = '' ] ; then
-    if [ "$(ls ./${MDA_RESULT_NAYOSE_PROCESSING}* 2>/dev/null)" = '' ] ; then
-      is_processing=${TRUE}
-    else
-      echo "during startup processing_mda_result_nayose.sh. exit."
-    fi
+  if [ "$(ls ./${PROCESSING2}* 2>/dev/null)" = '' -a "$(ls ./${MDA_RESULT_INPORT_PROCESSING}* 2>/dev/null)" = '' ] ; then
+    is_processing=${TRUE}
   else
     echo "during startup processing_mda_result_import.sh. exit."
   fi
-  
+
   if [ ${is_processing} = ${TRUE} ] ; then
-    exit_if_on_processing
-    create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
-    
-    num_of_csv_files=0
-    input_dir_path=${INPUT_DIR_PATH}/`date +'%Y%m%d'`_11
-    if [ -e ${input_dir_path}/${ERROR_DIR_NAME} ]; then
-      # ƒGƒ‰[ƒtƒHƒ‹ƒ_—L
-      num_of_csv_files=`find ${input_dir_path} -name "*.csv" -not -path "${input_dir_path}/${ERROR_DIR_NAME}/*" -type f -name "${INPUT_FILE_NAME_PATTERN}" | wc -l`
-    elif [ -e ${input_dir_path} ]; then
-      num_of_csv_files=`find ${input_dir_path} -name "*.csv" -type f -name "${INPUT_FILE_NAME_PATTERN}" | wc -l`
+    # å½“æ—¥P11æœªå–è¾¼
+    DIR1=`date +'%Y%m%d'`"_11"
+
+    if [ -e ${MOVE_TODAY_DIR} ]; then
+      for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+        num_of_csv_files1=`find ${MOVE_TODAY_DIR} -maxdepth 1 -name ${input_file_name_pattern}  -type f | wc -l | sed -e 's/ //g'`
+        if [ ${num_of_csv_files1} -gt 0 ] ; then
+            # å–è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã™ã‚‹
+            
+            # ãƒãƒƒãƒãƒ•ãƒ©ã‚°
+            if [ ${IS_LBC_BACH_START} = ${FALSE} ] ; then
+              IS_LBC_BACH_START=${TRUE}
+              break
+            fi
+        fi
+        
+      done
+
+      remove_dir ${MOVE_TODAY_DIR}
     fi
-    
-    if [ ${num_of_csv_files} = 0 ] ; then
-      # ‘¶İ‚µ‚È‚¢ê‡
-      echo "no new csv files. exit."
-    else
+
+    if [ ${IS_LBC_BACH_START} = ${TRUE} ] ; then
+      # 1ã¤ã§ã‚‚ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã™ã‚‹å ´åˆ
       tabaitai_torikomi_batch_start
+    else
+      # å­˜åœ¨ã—ãªã„å ´åˆ
+      echo "no new csv files. exit."
     fi
   fi
+
   end_time
 }
 
@@ -89,7 +83,7 @@ function main {
 # ----------------------------------
 TODAY_DIR=`date +'%Y%m%d'`
 if [ ! -e ${LOG_INPUT_DIR_PATH}/${TODAY_DIR} ]; then
-  # ‘¶İ‚µ‚È‚¢ê‡
+  # å­˜åœ¨ã—ãªã„å ´åˆ
   mkdir ${LOG_INPUT_DIR_PATH}/${TODAY_DIR}
 fi
 {

@@ -10,154 +10,139 @@ source ./utils.sh
 
 # config
 
-# “Çƒtƒ@ƒCƒ‹ƒpƒ^[ƒ“–¼
-INPUT_FILE_NAME_PATTERN1=${INPUT_FILE_NAME_PATTERN_MAPING_MULTIPLE}
-INPUT_FILE_NAME_PATTERN2=${INPUT_FILE_NAME_PATTERN_MAPING_UNIQUE}
-
-INPUT_TITLE_NAME_SIZE1=16
-INPUT_TITLE_NAME_SIZE2=14
-
+# èª­è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ã‚¿ãƒ¼ãƒ³å(å–è¾¼ãƒ•ã‚¡ã‚¤ãƒ« å‡ºåŠ›ãƒ•ã‚¡ã‚¤ãƒ«å¤‰æ›æ–‡å­— å–è¾¼ãƒ•ã‚¡ã‚¤ãƒ«æ—¥ä»˜ã¾ã§ã®æ–‡å­—æ•°)
+MULTIPLE=(${INPUT_FILE_NAME_PATTERN_MAPING_MULTIPLE} ${OUTPUT_FILE_NAME_PATTERN_MAPING_MULTIPLE} 16)
+UNIQUE=(${INPUT_FILE_NAME_PATTERN_MAPING_UNIQUE} ${OUTPUT_FILE_NAME_PATTERN_MAPING_UNIQUE} 14)
 INPUT_TITLE_HIZUKE_SIZE=14
 
-OUTPUT_FILE_NAME_PATTERN1=${OUTPUT_FILE_NAME_PATTERN_MAPING_MULTIPLE}
-OUTPUT_FILE_NAME_PATTERN2=${OUTPUT_FILE_NAME_PATTERN_MAPING_UNIQUE}
-
-# ŠÄ‹ƒfƒBƒŒƒNƒgƒŠ
+# ç›£è¦–ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
 INPUT_DIR_PATH=${MAPING_RESPONSE_DIR_PATH}
 
-# ‹N“®—L–³
+# èµ·å‹•æœ‰ç„¡
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
-# ‹N“®—L–³ƒpƒ^[ƒ“–¼
-PREFIX_OF_FILENAME_ON_PROCESSING=${MDA_RESULT_NAYOSE_PROCESSING}
+# èµ·å‹•æœ‰ç„¡ãƒ‘ã‚¿ãƒ¼ãƒ³å
+PREFIX_OF_FILENAME_ON_PROCESSING=${PROCESSING3}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
-#ƒƒOƒtƒ@ƒCƒ‹–¼
+#ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«å
 LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
-# ----------------------------------
+#PHPãƒãƒƒãƒèµ·å‹•
+IS_LBC_BACH_START=${FALSE}
 
-# tey-catch Error
-trap catch ERR
-
-# ƒGƒ‰[o—Í
-function catch {
-    echo CATCH
-    end_time
-}
+#P25ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
+MOVE_TODAY_DIR=${NAYOSE_IMPORT_AFTER_DIR_PATH}/`date +'%Y%m%d'`
 
 # ----------------------------------
 
-#ƒtƒ@ƒCƒ‹‚ğƒRƒs[
+#ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ã‚³ãƒ”ãƒ¼
 function copy_gunzip_csv_file {
-  my_echo "copy_gunzip_csv_file $1"
+  my_echo "copy_gunzip_csv_file $1 [$2]"
   input_file_path=$1
+  output_file=$2
+
+  # ãƒ•ã‚¡ã‚¤ãƒ«å
+  input_gz_filename=`basename ${input_file_path}`
+  input_csv_filename=`basename ${input_file_path} .gz`
   
-  # ƒtƒ@ƒCƒ‹–¼
-  input_csv_filename=`basename ${input_file_path}`
-  if [ ! -e ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_csv_filename} ]; then
-    # ‘¶İ‚µ‚È‚¢ê‡
-    `cp ${input_file_path} ${NAYOSE_IMPORT_AFTER_DIR_PATH}/`
-  else
-    # ‘¶İê‡‚·‚éê‡
-    `cp -f ${input_file_path} ${NAYOSE_IMPORT_AFTER_DIR_PATH}/`
-  fi
-  # ‰ğ“€
-  `gunzip -f ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_csv_filename}`
+  #åŒä¸€è§£å‡ãƒ•ã‚¡ã‚¤ãƒ«
+  remove_file ${MOVE_TODAY_DIR}/${input_csv_filename}
+  
+  # ã‚³ãƒ”ãƒ¼
+  `cp -f ${input_file_path} ${MOVE_TODAY_DIR}/`
+  # è§£å‡
+  `gunzip -f ${MOVE_TODAY_DIR}/${input_gz_filename}`
+  # åå‰å¤‰æ›´
+  move_input_csv_file ${MOVE_TODAY_DIR}/${input_csv_filename} ${MOVE_TODAY_DIR}/${output_file}
 }
 
-# ƒ}ƒbƒ`ƒ“ƒOƒtƒ@ƒCƒ‹Œ‹‰Ê‚ğˆÚ“®
+# ãƒãƒƒãƒãƒ³ã‚°ãƒ•ã‚¡ã‚¤ãƒ«çµæœã‚’ç§»å‹•
 function maching_csv_file {
   my_echo "process_csv_file_copy"
-  if [ ! -e ${INPUT_DIR_PATH} ]; then
-    # ‘¶İ‚µ‚È‚¢ê‡
-    echo "no maching response directory. exit."
-    end_time
+
+  if [ ! -e ${MOVE_TODAY_DIR} ]; then
+    # å­˜åœ¨ã—ãªã„å ´åˆ
+    mkdir ${MOVE_TODAY_DIR}
   fi
-  
-  num_of_csv_files1=`find ${INPUT_DIR_PATH} -name "*.csv" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f | wc -l`
-  if [ ${num_of_csv_files1} = 0 ] ; then
-    my_echo 'no *.csv files. exit.'
-  else
-    # CSVƒtƒ@ƒCƒ‹ŒŸõ
-    input_csv_fullpath_array=`find ${INPUT_DIR_PATH} -name "*.csv" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f | sort`
-    for input_csv_fullpath in $input_csv_fullpath_array; do
-      if [ -e ${input_csv_fullpath} ]; then
-        # ˆ³k
-        `sudo -i gzip -f ${input_csv_fullpath}`
-        my_echo 'gzip '${input_csv_fullpath}
+
+  num_of_csv_files1=`find "${INPUT_DIR_PATH}" -name "${MULTIPLE[0]}*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f | wc -l`
+  if [ ${num_of_csv_files1} -gt 0 ] ; then
+    # 1ã¤ã§ã‚‚ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã™ã‚‹å ´åˆ
+    
+    # multipleåœ§ç¸®ãƒ•ã‚¡ã‚¤ãƒ«æ¤œç´¢
+    input_multiple_gz_fullpath_array=`find "${INPUT_DIR_PATH}" -name "${MULTIPLE[0]}*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f | sort`
+    for input_multiple_gz_fullpath in $input_multiple_gz_fullpath_array; do
+      # multipleåœ§ç¸®ãƒ•ã‚¡ã‚¤ãƒ«å
+      input_multiple_gz_filename=`basename ${input_multiple_gz_fullpath}`
+      # æ—¥ä»˜å
+      hizuke_name=${input_multiple_gz_filename:MULTIPLE[2]:INPUT_TITLE_HIZUKE_SIZE}
+      
+      num_of_csv_files2=`find "${INPUT_DIR_PATH}" -name "${UNIQUE[0]}${hizuke_name}*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f | wc -l`
+      if [ ${num_of_csv_files2} = 0 ] ; then
+        echo "no maching unique csv files. exit. [multiple filename:"${input_multiple_gz_filename}"]"
+        continue
+      fi
+
+      # å¯¾å¿œã™ã‚‹uniqueåœ§ç¸®ãƒ•ã‚¡ã‚¤ãƒ«æ¤œç´¢
+      input_unique_gz_fullpath=`find ${INPUT_DIR_PATH} -name "${UNIQUE[0]}${hizuke_name}*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f | sort | head -n 1`
+      # åœ§ç¸®ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ã‚³ãƒ”ãƒ¼è§£å‡ç§»å‹•
+      copy_gunzip_csv_file ${input_multiple_gz_fullpath} ${hizuke_name}${MULTIPLE[1]}
+      copy_gunzip_csv_file ${input_unique_gz_fullpath} ${hizuke_name}${UNIQUE[1]}
+      
+      # åœ§ç¸®ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ãƒãƒƒã‚¯ã‚¢ãƒƒãƒ—ã¸
+      move_input_csv_file_sudo ${input_multiple_gz_fullpath} ${MAPING_RESPONSE_OLD_DIR_PATH}/
+      move_input_csv_file_sudo ${input_unique_gz_fullpath} ${MAPING_RESPONSE_OLD_DIR_PATH}/
+      # ãƒãƒƒãƒãƒ•ãƒ©ã‚°
+      if [ ${IS_LBC_BACH_START} = ${FALSE} ] ; then
+        IS_LBC_BACH_START=${TRUE}
       fi
     done
-  fi
-  
-  num_of_csv_files2=`find ${INPUT_DIR_PATH} -name "*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f -name "${INPUT_FILE_NAME_PATTERN1}*" | wc -l`
-  if [ ${num_of_csv_files2} = 0 ] ; then
+  else
+    # å­˜åœ¨ã—ãªã„å ´åˆ
     echo "no *.csv.gz files. exit."
-    end_time
   fi
-  
-  TODAY_DIR=`date +'%Y%m%d'`
-  if [ ! -e ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${TODAY_DIR} ]; then
-    # ‘¶İ‚µ‚È‚¢ê‡
-    mkdir ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${TODAY_DIR}
-  fi
-  
-  is_nayose_bach_start=${FALSE}
-  # multipleˆ³kƒtƒ@ƒCƒ‹ŒŸõ
-  input_multiple_gz_fullpath_array=`find ${INPUT_DIR_PATH} -name "*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f -name "${INPUT_FILE_NAME_PATTERN1}*" | sort`
-  for input_multiple_gz_fullpath in $input_multiple_gz_fullpath_array; do
-    # multipleˆ³kƒtƒ@ƒCƒ‹–¼
-    input_multiple_gz_filename=`basename ${input_multiple_gz_fullpath}`
-    # “ú•t–¼
-    hizuke_name=${input_multiple_gz_filename:INPUT_TITLE_NAME_SIZE1:INPUT_TITLE_HIZUKE_SIZE}
-    
-    num_of_maching_csv_files2=`find ${INPUT_DIR_PATH} -name "*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f -name "${INPUT_FILE_NAME_PATTERN2}${hizuke_name}*" | wc -l`
-    if [ ${num_of_maching_csv_files2} = 0 ] ; then
-      echo "no maching csv files. exit."${INPUT_FILE_NAME_PATTERN2}${hizuke_name}".csv.gz"
-      continue
-    fi
-    # ‘Î‰‚·‚éuniqueˆ³kƒtƒ@ƒCƒ‹ŒŸõ
-    input_unique_gz_fullpath=`find ${INPUT_DIR_PATH} -name "*.gz" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f -name "${INPUT_FILE_NAME_PATTERN2}${hizuke_name}*" | sort | head -n 1`
 
-    # ˆ³kƒtƒ@ƒCƒ‹‚ğƒRƒs[‰ğ“€ˆÚ“®
-    copy_gunzip_csv_file ${input_multiple_gz_fullpath}
-    copy_gunzip_csv_file ${input_unique_gz_fullpath}
-    # ˆ³kƒtƒ@ƒCƒ‹‚ğƒoƒbƒNƒAƒbƒv‚Ö
-    move_input_csv_file_sudo ${input_multiple_gz_fullpath} ${MAPING_RESPONSE_OLD_DIR_PATH}/
-    move_input_csv_file_sudo ${input_unique_gz_fullpath} ${MAPING_RESPONSE_OLD_DIR_PATH}/
-    # CSVƒtƒ@ƒCƒ‹–¼
-    input_multiple_gz_filename_not_gz=`basename ${input_multiple_gz_fullpath} .gz`
-    input_unique_gz_filename_not_gz=`basename ${input_unique_gz_fullpath} .gz`
-    # CSVƒtƒ@ƒCƒ‹‚ğ‘Î‰ƒtƒHƒ‹ƒ_‚ÖˆÚ“®
-    move_input_csv_file ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_multiple_gz_filename_not_gz} ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${TODAY_DIR}/${hizuke_name}${OUTPUT_FILE_NAME_PATTERN1}
-    move_input_csv_file ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${input_unique_gz_filename_not_gz} ${NAYOSE_IMPORT_AFTER_DIR_PATH}/${TODAY_DIR}/${hizuke_name}${OUTPUT_FILE_NAME_PATTERN2}
-    
-    is_nayose_bach_start=${TRUE}
-  done
-  
-  if [ ${is_nayose_bach_start} = ${TRUE} ] ; then
-    maching_nayose_lbcsbn_batch_start
-  fi
 }
 
 # ----------------------------------
 
-# I—¹“®ì
-function end_time {
-  delete_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
-  
-  echo 'end_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  exit
-}
-
-# ŠJn
+# é–‹å§‹
 function main {
   echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-
   exit_if_on_processing
   create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
 
-  maching_csv_file
+  if [ ! -e ${INPUT_DIR_PATH} ]; then
+    # å­˜åœ¨ã—ãªã„å ´åˆ
+    echo "no maching response directory. exit."
+  else
+    # å­˜åœ¨ã™ã‚‹
+    
+    num_of_csv_files1=`find "${INPUT_DIR_PATH}" -name "*.csv" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f| wc -l`
+    if [ ${num_of_csv_files1} -gt 0 ] ; then
+      # 1ã¤ã§ã‚‚ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã™ã‚‹å ´åˆ
+      
+      # CSVãƒ•ã‚¡ã‚¤ãƒ«æ¤œç´¢
+      input_csvfile_fullpath_array=`find "${INPUT_DIR_PATH}" -name "*.csv" -not -path "${MAPING_RESPONSE_OLD_DIR_PATH}/*" -type f | sort`
+      for input_csv_fullpath in $input_csv_fullpath_array; do
+        if [ -e ${input_csv_fullpath} ]; then
+          # åœ§ç¸®
+          `sudo -i gzip -f ${input_csv_fullpath}`
+          my_echo 'gzip '${input_csv_fullpath}
+        fi
+      done
+    fi
+    
+    # ãƒãƒƒãƒãƒ³ã‚°ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã¸ç§»å‹•
+    maching_csv_file
+  fi
+
+  if [ ${IS_LBC_BACH_START} = ${TRUE} ] ; then
+    # 1ã¤ã§ã‚‚ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã™ã‚‹å ´åˆ
+    maching_nayose_lbcsbn_batch_start
+  fi
+
   end_time
 }
 
@@ -165,7 +150,7 @@ function main {
 # ----------------------------------
 TODAY_DIR=`date +'%Y%m%d'`
 if [ ! -e ${LOG_INPUT_DIR_PATH}/${TODAY_DIR} ]; then
-  # ‘¶İ‚µ‚È‚¢ê‡
+  # å­˜åœ¨ã—ãªã„å ´åˆ
   mkdir ${LOG_INPUT_DIR_PATH}/${TODAY_DIR}
 fi
 {

@@ -1,26 +1,27 @@
 <?php
+
 // ----------------------------
 // database configuration
 // ----------------------------
 // バッチサーバー
-$DB['db_server'] = 'dip-vpc03-crai-recolin-db01.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
+$DB['db_server'] = 'dip-vpc03-crai-recolin-db21.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
 $DB['db_port'] = '3306';
 $DB['db_username'] = 'dipai';
 $DB['db_password'] = 'dipeengine';
 $DB['db_name'] = 'CRM_BATCH_DB';
 $DB['db_type'] = 'mysql';
 // 登録サーバー（LBC）
-$RECOLIN_DB['db_server'] = 'dip-vpc03-crai-recolin-db01.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
+$RECOLIN_DB['db_server'] = 'dip-vpc03-crai-recolin-db21.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
 $RECOLIN_DB['db_port'] = '3306';
 $RECOLIN_DB['db_username'] = 'dipai';
 $RECOLIN_DB['db_password'] = 'dipeengine';
 $RECOLIN_DB['db_name'] = 'recolin_aidb01';
 $RECOLIN_DB['db_type'] = 'mysql';
 // 登録サーバー（CORP）
-$CRM_DB['db_server'] = 'dip-vpc03-crm-db01.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
+$CRM_DB['db_server'] = 'dip-vpc03-crapi-db21.ck5id2om0wvt.ap-northeast-1.rds.amazonaws.com';
 $CRM_DB['db_port'] = '3306';
-$CRM_DB['db_username'] = 'root';
-$CRM_DB['db_password'] = 'zt9oxahm';
+$CRM_DB['db_username'] = 'crmapi';
+$CRM_DB['db_password'] = 'dipeengine';
 $CRM_DB['db_name'] = 'CRMINF';
 $CRM_DB['db_type'] = 'mysql';
 // 参照サーバー
@@ -105,113 +106,113 @@ $CSV_EXPORT['encoding'] = 'UTF-8';
 // appended to export filename, leave blank to remove date from filename
 $CSV_EXPORT['date_fmt'] = 'YmdHis';
 
-$FTP_RESPONSE_PATH['CorpMaster'] = '/home/teramgmt/LS_matching_Request/CorpMaster/Response';
-$FTP_RESPONSE_PATH['RivalMedia'] = '/home/teramgmt/LS_matching_Request/RivalMedia/Response';
-$FTP_RESPONSE_PATH['Obic'] = '/home/teramgmt/LS_matching_Request/Obic/Response';
-$FTP_RESPONSE_PATH['NGCorp'] = '/home/teramgmt/LS_matching_Request/NGCorp/Response';
+$FTP_RESPONSE_PATH['CorpMaster'] = '/home/teramgmt/tmp/CorpMaster/Response';
+$FTP_RESPONSE_PATH['RivalMedia'] = '/home/teramgmt/tmp/RivalMedia/Response';
+$FTP_RESPONSE_PATH['Obic'] = '/home/teramgmt/tmp/Obic/Response';
+$FTP_RESPONSE_PATH['NGCorp'] = '/home/teramgmt/tmp/NGCorp/Response';
 
 // ----------------------------
 // email settings
 // ----------------------------
 $MAIL = array(
 	'from' => 'ittera.wk@gmail.com',
-	'1' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'1' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process1 Encountered Error.'),
-	'2' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'2' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process2 Encountered Error.'),
-	'3' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'3' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process3 Encountered Error.'),
-	'4' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'4' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process4 Encountered Error.'),
-	'5' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'5' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process5 Encountered Error.'),
-	'6' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'6' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process6 Encountered Error.'),
-	'7' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'7' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process7 Encountered Error.'),
-	'8' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'8' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process8 Encountered Error.'),
-	'9' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'9' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process9 Encountered Error.'),
-	'10' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'10' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process10 Encountered Error.'),
-	'11' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'11' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process11 Encountered Error.'),
-	'12' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'12' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process12 Encountered Error.'),
-	'13' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'13' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process13 Encountered Error.'),
-	'14' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'14' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process14 Encountered Error.'),
-	'15' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'15' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process15 Encountered Error.'),
-	'16' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'16' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process16 Encountered Error.'),
-	'17' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'17' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process17 Encountered Error.'),
-	'18' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'18' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process18 Encountered Error.'),
-	'19' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'19' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process19 Encountered Error.'),
-	'21' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'21' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process21 Encountered Error.'),
-	'22' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'22' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process22 Encountered Error.'),
-	'23' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'23' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process23 Encountered Error.'),
-	'24' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'24' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process24 Encountered Error.'),
-	'25' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'25' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process25 Encountered Error.'),
-	'26' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'26' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process26 Encountered Error.'),
-	'27' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'27' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process27 Encountered Error.'),
-	'28' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'28' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process28 Encountered Error.'),
-	'29' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'29' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process29 Encountered Error.'),
-	'30' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'30' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process30 Encountered Error.'),
-	'31' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'31' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process31 Encountered Error.'),
-	'32' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'32' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process32 Encountered Error.'),
-	'33' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'33' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process33 Encountered Error.'),
-	'34' => array('to'=>'crm_itinfo@dip-net.co.jp',
+	'34' => array('to'=>'e-oya@dip-net.co.jp',
 				 'subject'=>'DIP Data linkage batch Error List.',
 				 'body'=>'Process34 Encountered Error.'),
 	

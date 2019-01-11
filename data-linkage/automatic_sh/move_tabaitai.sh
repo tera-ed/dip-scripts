@@ -10,116 +10,121 @@ source ./utils.sh
 
 # config
 
-# “Çƒtƒ@ƒCƒ‹ƒpƒ^[ƒ“–¼
-INPUT_FILE_NAME_PATTERN=${INPUT_FILE_NAME_PATTERN_TABAITAI}
-# ŠÄ‹ƒfƒBƒŒƒNƒgƒŠ
-INPUT_DIR_PATH_ARRAY=("/home/teramgmt/yashima_work")
-OUTPUT_DIR_PATH=${IMPORT_AFTER_DIR_PATH}
+# èª­è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ã‚¿ãƒ¼ãƒ³å
+INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI})
+#INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_PATTERN_FORCE})
 
-# ‹N“®—L–³
+# èµ·å‹•æœ‰ç„¡
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
-# ‹N“®—L–³ƒpƒ^[ƒ“–¼
-PREFIX_OF_FILENAME_ON_PROCESSING=${MOVE_TABAITAI_PROCESSING}
+# èµ·å‹•æœ‰ç„¡ãƒ‘ã‚¿ãƒ¼ãƒ³å
+PREFIX_OF_FILENAME_ON_PROCESSING=${PROCESSING5}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
-#ƒƒOƒtƒ@ƒCƒ‹–¼
+#ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«å
 LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
+#PHPãƒãƒƒãƒèµ·å‹•
+IS_TABAITAI_START=${FALSE}
+
+#P11ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
+MOVE_TODAY_DIR=${IMPORT_AFTER_DIR_PATH}/`date +'%Y%m%d'`"_11"
+
+MAX_TORIKOMI_COUNT=1
+COUNT=0
+
 # ----------------------------------
 
-# tey-catch Error
-trap catch ERR
+# é–‹å§‹
+function move_tabaitai_csv {
+  my_echo "move_tabaitai_csv $1 [$2]"
+  input_dir=$1
+  pattern=$2
 
-# ƒGƒ‰[o—Í
-function catch {
-    echo CATCH
-    end_time
+  count=0
+  num_of_csv_files1=`find ${input_dir} -maxdepth 1 -name ${pattern} -type f | wc -l | sed -e 's/ //g'`
+  if [ ${num_of_csv_files1} -gt 0 ] ; then
+    # å–è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã™ã‚‹
+    input_csvfile_fullpath_array=`find ${input_dir} -maxdepth 1 -name ${pattern} -type f | sort`
+    for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
+      if [ ${COUNT} -ge ${MAX_TORIKOMI_COUNT} ] ; then
+        IS_TABAITAI_START=${TRUE}
+        break
+      fi
+      
+      # ç§»å‹•
+      move_input_csv_file ${input_csvfile_fullpath} ${MOVE_TODAY_DIR}/
+      COUNT=$(( COUNT + 1 ))
+    done
+  fi
 }
 
 # ----------------------------------
 
-# I—¹“®ì
-function end_time {
-  delete_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
-  
-  echo 'end_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  exit
-}
-
-# ŠJn
+# é–‹å§‹
 function main {
   echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  
+  exit_if_on_processing
+  create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
+
   is_processing=${FALSE}
-  if [ "$(ls ./${CREATING_PROCESSING}* 2>/dev/null)" = '' ] ; then
+  if [ "$(ls ./${PROCESSING1}* 2>/dev/null)" = '' ] ; then
     is_processing=${TRUE}
+    
+    # å¯¾å¿œã™ã‚‹ä»–åª’ä½“ãƒ•ã‚¡ã‚¤ãƒ«æ¤œç´¢
+    DIR1=`date +'%Y%m%d'`'_11'
+    output_dir_path=${IMPORT_AFTER_DIR_PATH}/${DIR1}
+    if [ -e ${output_dir_path} ]; then
+      for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+        num_of_csv_files=`find ${output_dir_path} -type f -name "${input_file_name_pattern}" -type f | wc -l`
+        COUNT=$(( COUNT + ${num_of_csv_files} ))
+        
+        if [ ${COUNT} -ge ${MAX_TORIKOMI_COUNT} ] ; then
+          echo "already creating_mda_request csv files [path : "${output_dir_path}"]. exit."
+          is_processing=${FALSE}
+          break
+        fi
+      done
+    fi
   else
     echo "during startup creating_mda_request.sh. exit."
   fi
-  
+
   if [ ${is_processing} = ${TRUE} ] ; then
-    exit_if_on_processing
-    create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
-    
-    # ‘Î‰‚·‚é‰ß‹ƒtƒ@ƒCƒ‹ŒŸõ
-    output_old_dir_path=${OUTPUT_DIR_PATH}/`date -d "1 day ago" +'%Y%m%d'`_11
-    if [ -e ${output_old_dir_path} ]; then
-      num_of_csv_files1=`find ${output_old_dir_path} -name "*.csv" -type f -name "${INPUT_FILE_NAME_PATTERN}" | wc -l`
-      if [ ${num_of_csv_files1} > 0 ] ; then
-        input_csvfile_fullpath_array=`find ${output_old_dir_path} -maxdepth 1 -regex ${INPUT_FILE_NAME_PATTERN} -type f | sort`
-        
-        if [ ! -e ${output_dir_path} ]; then
-          # ‘¶İ‚µ‚È‚¢ê‡AƒfƒBƒŒƒNƒgƒŠ‚ğì¬
-          mkdir ${output_dir_path}
-        fi
-        
-        for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
-          # ˆÚ“®
-          move_input_csv_file ${input_csvfile_fullpath} ${output_dir_path}/
-        done
-      fi
+
+    if [ ! -e ${MOVE_TODAY_DIR} ]; then
+      # å­˜åœ¨ã—ãªã„å ´åˆ
+      mkdir ${MOVE_TODAY_DIR}
     fi
-    
-    # ‘Î‰‚·‚éƒtƒ@ƒCƒ‹ŒŸõ
-    output_dir_path=${OUTPUT_DIR_PATH}/`date +'%Y%m%d'`_11
-    if [ -e ${output_dir_path} ]; then
-      num_of_csv_files2=`find ${output_dir_path} -name "*.csv" -type f -name "${INPUT_FILE_NAME_PATTERN}" | wc -l`
-      if [ ${num_of_csv_files2} > 0 ] ; then
-        #ˆÚ“®æƒfƒBƒŒƒNƒgƒŠ‚É‘Î‰ƒtƒ@ƒCƒ‹‚ª‚ ‚éê‡
-        echo "already csv files. exit."
-        end_time
-      fi
-    fi
-    
-    for input_dir_path in ${INPUT_DIR_PATH_ARRAY[@]}; do
-      if [ -e ${input_dir_path} ]; then
-        # ‘Î‰‚·‚éƒtƒ@ƒCƒ‹ŒŸõ
-        num_of_csv_files3=`find ${input_dir_path} -name "*.csv" -type f -name "${INPUT_FILE_NAME_PATTERN}" | wc -l`
-        if [ ${num_of_csv_files3} = 0 ] ; then
-          # ‘Î‰ƒfƒBƒŒƒNƒgƒŠ‚Éƒtƒ@ƒCƒ‹‚ª‘¶İ‚µ‚È‚¢
-          echo "${input_dir_path} : no new csv files. exit."
-          continue
+
+    # å‰æ—¥P11æœªå–è¾¼
+    DIR1=`date -d "1 day ago" +'%Y%m%d'`"_11"
+    input_csv_fullpath_array=(${IMPORT_AFTER_DIR_PATH}/${DIR1})
+
+    for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+      
+      for input_csv_fullpath1 in ${input_csv_fullpath_array[@]}; do
+        if [ -e ${input_csv_fullpath1} ]; then
+          if [ ${IS_TABAITAI_START} = ${TRUE} ] ; then
+            break
+          fi
+          move_tabaitai_csv ${input_csv_fullpath1} ${input_file_name_pattern}
+          remove_dir ${input_csv_fullpath1}
         fi
-        
-        if [ ! -e ${output_dir_path} ]; then
-          # ‘¶İ‚µ‚È‚¢ê‡AƒfƒBƒŒƒNƒgƒŠ‚ğì¬
-          mkdir ${output_dir_path}
+      done
+
+      for input_csv_fullpath2 in ${TABAITAI_DIR_PATHS[@]}; do
+        if [ -e ${input_csv_fullpath2} ]; then
+          if [ ${IS_TABAITAI_START} = ${TRUE} ] ; then
+            break
+          fi
+          move_tabaitai_csv ${input_csv_fullpath2} ${input_file_name_pattern}
         fi
-        
-        num_of_csv_files4=`find ${output_dir_path} -name "*.csv" -type f -name "${INPUT_FILE_NAME_PATTERN}" | wc -l`
-        if [ ${num_of_csv_files4} = 0 ] ; then
-          # ˆÚ“®æƒfƒBƒŒƒNƒgƒŠ‚É‘Î‰ƒtƒ@ƒCƒ‹‚ª1‚Â‚à‚È‚¢ê‡ˆÚ“®‚ğs‚¤
-          input_csv_fullpath=`find ${input_dir_path} -name "*.csv" -type f -name "${INPUT_FILE_NAME_PATTERN}" | sort -rn | head -n 1`
-          move_input_csv_file ${input_csv_fullpath} ${output_dir_path}/
-        fi
-        
-        # 1ƒtƒ@ƒCƒ‹‘Î‰‚ÅI—¹
-        break
-      fi
+      done
     done
   fi
-  
+
+  remove_dir ${MOVE_TODAY_DIR}
   end_time
 }
 
@@ -127,7 +132,7 @@ function main {
 # ----------------------------------
 TODAY_DIR=`date +'%Y%m%d'`
 if [ ! -e ${LOG_INPUT_DIR_PATH}/${TODAY_DIR} ]; then
-  # ‘¶İ‚µ‚È‚¢ê‡
+  # å­˜åœ¨ã—ãªã„å ´åˆ
   mkdir ${LOG_INPUT_DIR_PATH}/${TODAY_DIR}
 fi
 {

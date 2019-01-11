@@ -10,113 +10,84 @@ source ./utils.sh
 
 # config
 
-# “Çƒtƒ@ƒCƒ‹ƒpƒ^[ƒ“–¼
-INPUT_FILE_NAME_PATTERN=${INPUT_FILE_NAME_PATTERN_MDA_REQ}
-# ŠÄ‹ƒfƒBƒŒƒNƒgƒŠ
-INPUT_DIR_PATH=${EXPORT_AFTER_DIR_PATH}
+# èª­è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ã‚¿ãƒ¼ãƒ³å
+INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_MDA_REQ})
 
-# ‹N“®—L–³
+# èµ·å‹•æœ‰ç„¡
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
-# ‹N“®—L–³ƒpƒ^[ƒ“–¼
-PREFIX_OF_FILENAME_ON_PROCESSING=${SENDING_REQUWET_PROCESSING}
+# èµ·å‹•æœ‰ç„¡ãƒ‘ã‚¿ãƒ¼ãƒ³å
+PREFIX_OF_FILENAME_ON_PROCESSING=${PROCESSING4}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
-#ƒƒOƒtƒ@ƒCƒ‹–¼
+#ãƒ­ã‚°ãƒ•ã‚¡ã‚¤ãƒ«å
 LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
-# ----------------------------------
+#PHPãƒãƒƒãƒèµ·å‹•
+IS_MAPING_BACH_START=${FALSE}
 
-# tey-catch Error
-trap catch ERR
-
-# ƒGƒ‰[o—Í
-function catch {
-    echo CATCH
-    end_time
-}
+#ãƒãƒƒãƒãƒ³ã‚°ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
+MOVE_TODAY_DIR=${MAPING_REQUEST_DIR_PATH}
 
 # ----------------------------------
 
-# 2‚Â‚ÌƒfƒBƒŒƒNƒgƒŠ‚©‚ç“®ì‚ğs‚¤
-function csv_file_two_dir {
-  my_echo "csv_file_two_dir $1 $2"
-  oneday_dir=$1
-  twoday_dir=$2
-  num_of_csv_files1=`find ${INPUT_DIR_PATH}/${oneday_dir} ${INPUT_DIR_PATH}/${twoday_dir} -maxdepth 1 -regex ${INPUT_FILE_NAME_PATTERN} | wc -l | sed -e 's/ //g'`
-  if [ ${num_of_csv_files1} = 0 ] ; then
-    echo "no new csv files. exit."
-    end_time
-  fi
-  
-  input_csvfile_fullpath_array=`find ${INPUT_DIR_PATH}/${oneday_dir} ${INPUT_DIR_PATH}/${twoday_dir} -maxdepth 1 -regex ${INPUT_FILE_NAME_PATTERN} -type f | sort`
-  for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
-    # ˆÚ“®
-    move_input_csv_file_sudo ${input_csvfile_fullpath} ${MAPING_REQUEST_DIR_PATH}/
-  done
-  
-  num_of_rmcsv_files=`find ${INPUT_DIR_PATH}/${oneday_dir} ${INPUT_DIR_PATH}/${twoday_dir} -type f | wc -l`
-  if [ ${num_of_rmcsv_files} = 0 ] ; then
-    rm -rf ${INPUT_DIR_PATH}/${oneday_dir} ${INPUT_DIR_PATH}/${twoday_dir}
-    echo 'delete directory. '${INPUT_DIR_PATH}/${oneday_dir}' '${INPUT_DIR_PATH}/${twoday_dir}
-  fi
-}
+# å¯¾å¿œãƒ•ã‚¡ã‚¤ãƒ«ã‚’ç§»å‹•
+function csv_file_move_dir {
+  my_echo "csv_file_move_dir $1"
+  one_dir=$1
+  if [ -e ${one_dir} ]; then
+    for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+      if [ -e ${input_csv_fullpath} ]; then
+        num_of_csv_files1=`find ${one_dir} -maxdepth 1 -regex ${input_file_name_pattern} -type f | wc -l | sed -e 's/ //g'`
+        if [ ${num_of_csv_files1} -gt 0 ] ; then
+          # å–è¾¼ãƒ•ã‚¡ã‚¤ãƒ«ãŒå­˜åœ¨ã™ã‚‹
 
-# 1‚Â‚ÌƒfƒBƒŒƒNƒgƒŠ‚©‚ç“®ì‚ğs‚¤
-function csv_file_one_dir {
-  my_echo "csv_file_one_dir $1"
-  oneday_dir=$1
-  num_of_csv_files1=`find ${INPUT_DIR_PATH}/${oneday_dir} -maxdepth 1 -regex ${INPUT_FILE_NAME_PATTERN} | wc -l | sed -e 's/ //g'`
-  if [ ${num_of_csv_files1} = 0 ] ; then
-    echo "no new csv files. exit."
-    end_time
-  fi
-  input_csvfile_fullpath_array=`find ${INPUT_DIR_PATH}/${oneday_dir} -maxdepth 1 -regex ${INPUT_FILE_NAME_PATTERN} -type f | sort`
-  for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
-    # ˆÚ“®
-    move_input_csv_file_sudo ${input_csvfile_fullpath} ${MAPING_REQUEST_DIR_PATH}/
-  done
-  
-  num_of_rmcsv_files=`find ${INPUT_DIR_PATH}/${oneday_dir} -type f | wc -l`
-  if [ ${num_of_rmcsv_files} = 0 ] ; then
-    rm -rf ${INPUT_DIR_PATH}/${oneday_dir}
-    echo 'delete directory. '${INPUT_DIR_PATH}/${oneday_dir}
+          if [ ! -e ${MOVE_TODAY_DIR} ]; then
+            # å­˜åœ¨ã—ãªã„å ´åˆ
+            mkdir ${MOVE_TODAY_DIR}
+          fi
+          
+          input_csvfile_fullpath_array=`find ${one_dir} -maxdepth 1 -regex ${input_file_name_pattern} -type f | sort`
+          for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
+             # ç§»å‹•
+            move_input_csv_file_sudo ${input_csvfile_fullpath} ${MOVE_TODAY_DIR}/
+            # ãƒãƒƒãƒãƒ•ãƒ©ã‚°
+            if [ ${IS_MAPING_BACH_START} = ${FALSE} ] ; then
+              IS_MAPING_BACH_START=${TRUE}
+            fi
+          done
+        fi
+      fi
+    done
+
+    remove_dir ${one_dir}
   fi
 }
 
 # ----------------------------------
 
-# I—¹“®ì
-function end_time {
-  if [ ${GLOBAL_VAR_ON_PROCESSING} = ${FALSE} ] ; then
-    delete_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
-  fi
-  
-  echo 'end_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  exit
-}
-
-# ŠJn
+# é–‹å§‹
 function main {
   echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  
   exit_if_on_processing
   create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
   
-  TODAY_DIR_BACKUP=`date +'%Y%m%d'`${BACKUP_FILE_NAME_PATTERN}
-  OLD_TODAY_DIR_BACKUP=`date -d "1 day ago" +'%Y%m%d'`${BACKUP_FILE_NAME_PATTERN}
-
-  if [ -e ${INPUT_DIR_PATH}/${TODAY_DIR_BACKUP} -a -e ${INPUT_DIR_PATH}/${OLD_TODAY_DIR_BACKUP} ]; then
-    csv_file_two_dir $OLD_TODAY_DIR_BACKUP $TODAY_DIR_BACKUP
-  elif [ -e ${INPUT_DIR_PATH}/${TODAY_DIR_BACKUP} ]; then
-    csv_file_one_dir $TODAY_DIR_BACKUP
-  elif [ -e ${INPUT_DIR_PATH}/${OLD_TODAY_DIR_BACKUP} ]; then
-    csv_file_one_dir $OLD_TODAY_DIR_BACKUP
-  else
-      # ‘¶İ‚µ‚È‚¢ê‡
-      echo "no new csv files. exit."
-      end_time
+  # å½“æ—¥å–è¾¼çµæœ
+  DIR1=`date +'%Y%m%d'`${BACKUP_FILE_NAME_PATTERN}
+  # å‰æ—¥å–è¾¼çµæœ
+  DIR2=`date -d "1 day ago" +'%Y%m%d'`${BACKUP_FILE_NAME_PATTERN}
+  
+  # ç›£è¦–ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒª
+  input_csv_fullpath_array=(${EXPORT_AFTER_DIR_PATH}/${DIR1} ${EXPORT_AFTER_DIR_PATH}/${DIR2})
+  for input_csv_fullpath in ${input_csv_fullpath_array[@]}; do
+    csv_file_move_dir ${input_csv_fullpath}
+  done
+  
+  if [ ${IS_MAPING_BACH_START} = ${FALSE} ] ; then
+    # å­˜åœ¨ã—ãªã„å ´åˆ
+    echo "no new csv files. exit."
   fi
+  
   end_time
 }
 
@@ -124,7 +95,7 @@ function main {
 # ----------------------------------
 TODAY_DIR=`date +'%Y%m%d'`
 if [ ! -e ${LOG_INPUT_DIR_PATH}/${TODAY_DIR} ]; then
-  # ‘¶İ‚µ‚È‚¢ê‡
+  # å­˜åœ¨ã—ãªã„å ´åˆ
   mkdir ${LOG_INPUT_DIR_PATH}/${TODAY_DIR}
 fi
 {
