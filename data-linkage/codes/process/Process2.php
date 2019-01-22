@@ -26,15 +26,10 @@ class Process2{
 	 *
 	 * @param $filename
 	 */
-	function convFileEncoding($filename,$permission = 0700){
-
+	function convFileEncoding($filename, $path_before, $path_after){
 		try{
-			$path_after = getImportPath(true);
-			$path_before = getImportPath();
 			//create the directory in case import path do not exist
-			if(!file_exists($path_after)){
-				mkdir($path_after, $permission, true);
-			}
+			createDir($path_after);
 			// 文字コード変換
 			shell_exec('nkf --cp932 -wLu -x '.escapeshellarg($path_before).escapeshellarg($filename).' > '.escapeshellarg($path_after).escapeshellarg($filename));
 
@@ -88,13 +83,13 @@ class Process2{
 	 * convert excel file to csv files
 	 * @param string $filename excel filename
 	 */
-	function convExcelToCsv($filename){
+	function convExcelToCsv($filename, $path_before, $path_after){
 		$this->logger->debug('starts converting excel to csv =>' . $filename);
 		try{
 			//create the directory in case import path do not exist
-			createDir(getImportPath(true));
+			createDir($path_after);
 			//get filepath
-			$filePath = getImportPath().$filename;
+			$filePath = $path_before.$filename;
 			//get excel version according to file extension
 			$excelVersion = $this->getExcelVersion($filePath);
 
@@ -129,7 +124,7 @@ class Process2{
 
 
 				//open the csv file
-				$fp = fopen(getImportPath(true).$csvFilename."_$sheetnames[$i].csv", 'w');
+				$fp = fopen($path_after.$csvFilename."_$sheetnames[$i].csv", 'w');
 
 				$this->logger->debug("creating $csvFilename"."_$sheetnames[$i].csv file from sheet $sheetnames[$i]");
 
@@ -169,25 +164,30 @@ class Process2{
 	function execProcess(){
 		try{
 			$noFiles = true;
-			$dir = getImportPath();
-			$dh  = opendir($dir);
-			if(file_exists($dir)){
-				//loop all the files on the import directory
-				while (false !== ($filename = readdir($dh))) {
-					if ($filename != "." && $filename != "..") {
-						$noFiles = false;
-						$fileType = $this->getFileType($filename);
-						if(self::FILE_CSV_TXT === $fileType){
-							//convert the file
-							$this->convFileEncoding($filename);
-						}else if(self::FILE_EXCEL === $fileType){
-
-							//get list of valid csv files
-							// CSVファイル群取得 30MB以上は省く
-							if($this->capacityCheck($filename)){
-								$this->convExcelToCsv($filename);
+			foreach (array('','_9','_11') as &$dir_mei) {
+				$path_before = getImportPath(false, $dir_mei);
+				$path_after = getImportPath(true, $dir_mei);
+				if(file_exists($path_before)){
+					// ディレクトリの内容を読み込みます。
+					if ($dh = opendir($path_before)) {
+						//loop all the files on the export directory
+						while (false !== ($filename = readdir($dh))) {
+							if ($filename != "." && $filename != "..") {
+								$noFiles = false;
+								$fileType = $this->getFileType($filename);
+								if(self::FILE_CSV_TXT === $fileType){
+									//convert the file
+									$this->convFileEncoding($filename, $path_before, $path_after);
+								}else if(self::FILE_EXCEL === $fileType){
+									//get list of valid csv files
+									// CSVファイル群取得 30MB以上は省く
+									if($this->capacityCheck($filename, $path_before)){
+										$this->convExcelToCsv($filename, $path_before, $path_after);
+									}
+								}
 							}
 						}
+						closedir($dh);
 					}
 				}
 			}
@@ -206,10 +206,8 @@ class Process2{
 	 * returns valid csv files(not more than 30MB)
 	 * @return $validFiles files with size <= 30mb
 	 */
-	function capacityCheck($filename){
+	function capacityCheck($filename, $path){
 		$result = TRUE;
-		//get import path
-		$path = getImportPath();
 		try{
 			if(filesize($path.$filename) > 30000000){
 				//acquire filename only
@@ -220,9 +218,6 @@ class Process2{
 			throw $e;
 		}
 		return $result;
-
 	}
-
-
 }
 ?>

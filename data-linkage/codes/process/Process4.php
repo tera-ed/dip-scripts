@@ -453,10 +453,26 @@ class Process4{
 	 * @return array - merged array
 	 */
 	private function insertDefaultValue($array){
+		$address3 = $array['address3'];
+		if (array_key_exists('address4', $array)) {
+			$address3 = $address3.$data['address4'];
+			unset($array['address4']);
+		}
+		if (array_key_exists('address5', $array)) {
+			$address3 = $address3.$array['address5'];
+			unset($array['address5']);
+		}
+		if (array_key_exists('address6', $array)) {
+			$address3 = $address3.$array['address6'];
+			unset($array['address6']);
+		}
+		$array['address3'] = $address3;
+		
+		
 		$addedFields = array(
-			"addressall" => $array["address1"].$array["address2"].$array["address3"].$array["address4"].$array["address5"].$array["address6"],
+			"addressall" => $array["address1"].$array["address2"].$array["address3"],
 			"business_type" => $array["industry_code1"]
-			);
+		);
 		return array_merge($array, $addedFields);
 	}
 

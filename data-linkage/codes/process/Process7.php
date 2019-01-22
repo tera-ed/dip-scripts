@@ -402,11 +402,28 @@ class Process7{
 	 * @return array - merged array
 	 */
 	private function insertDefaultValue($array){
+		$address3 = $array['address3'];
+		if (array_key_exists('address4', $array)) {
+			$address3 = $address3.$array['address4'];
+			unset($array['address4']);
+		}
+		if (array_key_exists('address5', $array)) {
+			$address3 = $address3.$array['address5'];
+			unset($array['address5']);
+		}
+		if (array_key_exists('address6', $array)) {
+			$address3 = $address3.$array['address6'];
+			unset($array['address6']);
+		}
+		$array['address3'] = $address3;
+		
 		$addedFields = array(
-			"addressall" => $array["address1"].$array["address2"].$array["address3"].$array["address4"].$array["address5"].$array["address6"], //addressall (company_addr 1-6) 60-65
+			"addressall" => $array["address1"].$array["address2"].$array["address3"], //addressall (company_addr 1-6) 60-65
 			"business_type" => $array["industry_code1"] //business_type (industry_code1)
-			);
-		return array_merge($array, $addedFields);
+		);
+		$data = array_merge($array, $addedFields);
+		
+		return $data;
 	}
 	/**
 	 * Add missing fields to table from latitude,longitude delete data
@@ -417,7 +434,7 @@ class Process7{
 		$addedFields2 = array(
 			"latitude" => null, // 緯度
 			"longitude" => null // 経度
-			);
+		);
 		return array_merge($array, $addedFields2);
 	}
 

@@ -16,12 +16,14 @@ class Process1{
 
 		foreach ($data as $key => $dmy){
 			foreach($dmy as $val){
-				// obicファイルのみ2つ存在するため
-				if(is_array($IMPORT_FILENAME[$val])){
+				// 2つ存在する場合
+				if(is_array($IMPORT_FILENAME[$val]) 
+				&& !in_array($key, array('QuarterCorpMaster',  'RivalMedia', 'RivalMediaFileHere'))){
 					foreach($IMPORT_FILENAME[$val] as $name){
 						$dir = $FTP_IMPORT_PATH[$key].'/*_'.$name.'.csv';
 						$file_num+=count(glob($dir));
 						$data_num++;
+						$this->logger->info($dir);
 					}
 				}else{
 					// 4半期データ処理処理 マッチング特殊処理
@@ -29,30 +31,26 @@ class Process1{
 						if($val==3){
 							//LBC_DATAは複数ある可能性があるので01だけ見る
 							$check_filename='/*_'.$IMPORT_FILENAME[$val].'*_01.csv';
-
 						}else{
 							$check_filename='/*_'.$IMPORT_FILENAME[$val].'*.csv';
 						}
+					}else if($key == 'RivalMedia'){
+						$check_filename='/*_'.$IMPORT_FILENAME[$val][0].'.csv';
 					}else if($key == 'RivalMediaFileHere'){
 						$check_filename='/*.xls*';
 					}else{
 						$check_filename='/*_'.$IMPORT_FILENAME[$val].'.csv';
 					}
-
 					$dir = $FTP_IMPORT_PATH[$key].$check_filename;
 					$file_num+=count(glob($dir));
 					$data_num++;
+					$this->logger->info($dir);
 				}
-				
-				$this->logger->info($dir);
 			}
 		}
-
 		if($file_num == $data_num || $file_num == 0){
-
 			return $file_num;
 		}
-
 		return -1;
 	}
 
@@ -68,7 +66,8 @@ class Process1{
 		foreach ($data as $key => $dmy){
 			foreach($dmy as $val){
 				// obicファイルのみ2つ存在するため
-				if(is_array($IMPORT_FILENAME[$val])){
+				if(is_array($IMPORT_FILENAME[$val]) 
+				&& !in_array($key, array('QuarterCorpMaster',  'RivalMedia', 'RivalMediaFileHere'))){
 					foreach($IMPORT_FILENAME[$val] as $name){
 						$dir = $FTP_IMPORT_PATH[$key].'/*_'.$name.'.csv';
 						$this->file_copy_run($dir,$key,$val);
@@ -77,12 +76,13 @@ class Process1{
 					// 4半期データ処理処理 マッチング特殊処理
 					if($key == 'QuarterCorpMaster'){
 						$check_filename='/*_'.$IMPORT_FILENAME[$val].'*.csv';
+					}else if($key == 'RivalMedia'){
+						$check_filename='/*_'.$IMPORT_FILENAME[$val][0].'.csv';
 					}else if($key == 'RivalMediaFileHere'){
 						$check_filename='/*.xls*';
 					}else{
 						$check_filename='/*_'.$IMPORT_FILENAME[$val].'.csv';
 					}
-
 					$dir = $FTP_IMPORT_PATH[$key].$check_filename;
 					$this->file_copy_run($dir,$key,$val);
 				}
@@ -95,10 +95,19 @@ class Process1{
 	/**
 	 * ファイル移動の実行
 	 */
-	function file_copy_run($dir,$type,$val){
+	function file_copy_run($dir, $type, $val){
 		global  $FTP_IMPORT_PATH,$IMPORT_FILENAME;
-
-		$path_before = getImportPath();
+		
+		$path_before = NULL;
+		if ($val == 9) {
+			$path_before = getImportPath(false, '_9');
+		} else if ($val == 11) {
+			$path_before = getImportPath(false, '_11');
+		} else {
+			$path_before = getImportPath();
+		}
+		// 移動先フォルダがない場合には作成
+		createDir($path_before);
 
 		foreach(glob($dir) as $f_name){
 			// basename用に空白をエスケープ
@@ -110,7 +119,7 @@ class Process1{
 
 			// 他媒体特殊処理
 			if($type == 'RivalMediaFileHere'){
-				$file_name_mv=$IMPORT_FILENAME[$val]."_".$file_name;
+				$file_name_mv=$IMPORT_FILENAME[$val][0]."_".$file_name;
 			}else{
 				$file_name_mv=$file_name;
 			}
@@ -129,24 +138,22 @@ class Process1{
 	 * Execute Process 1
 	 */
 	function execProcess(){
-
 		try{
 			global $root;
 
 			$quarter_array=array('QuarterCorpMaster'=>array(3,4));
-			$week_array=array('CorpMaster'=>array(6,7)
-					,'Obic'=>array(8)
-					,'RivalMedia'=>array(9)
-					,'NGCorp'=>array(10)
+			$week_array=array(
+				'CorpMaster'=>array(6,7),
+				'Obic'=>array(8),
+				'RivalMedia'=>array(9),
+				'NGCorp'=>array(10)
 			);
 			$tabaitai_array=array('RivalMediaFileHere'=>array(11));
-
 
 			// ファイルの存在チェック
 			$quarter_noFiles=$this->check_file_exist($quarter_array);
 			$week_noFiles=$this->check_file_exist($week_array);
 			$tabaitai_noFiles=$this->check_file_exist($tabaitai_array);
-
 
 			if($quarter_noFiles==-1 || $week_noFiles==-1){
 				// 週次または四半期の組み合わせファイルが揃っていないときにエラー
@@ -155,10 +162,6 @@ class Process1{
 				//すべての読み込みファイルがない時
 				throw new Exception("取み込みファイルがありません。");
 			}else{
-				// 移動先フォルダがない場合には作成
-				$path_before = getImportPath();
-				createDir($path_before);
-
 				// 四半期
 				if($quarter_noFiles!=0){
 					$this->logger->info("四半期のファイルを移動します。");
@@ -182,7 +185,6 @@ class Process1{
 				}else{
 					$this->logger->info("他媒体のファイルはありません。");
 				}
-
 			}
 
 		}catch (Exception $e){

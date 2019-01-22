@@ -199,30 +199,30 @@ class Process9 {
 			$media_code = $header[0];
 			$office_id = $header[1];
 			
+			$condition1 = "media_code";
+			$condition2 = "compe_media_code";
 			foreach ($list as $row => &$data){
 				$result = null;
 				if($this->errorChecking($data, $row, $csv, $header)){
-					$condition = "media_code";
 					$key = array($data[$media_code]);
 					if(($counter % $MAX_COMMIT_SIZE) == 0){
 						$this->db->beginTransaction();
 						$this->crm_db->beginTransaction();
 					}
 					//Search for the item: 「他媒体コード」=「t_media_match_wait.media_code」 record
-					$dbResult = $this->db->getDataCount(self::databaseTable,$condition."=?",$key);
+					$dbResult = $this->db->getDataCount(self::databaseTable,$condition1."=?",$key);
 					//If the search results are not 0件 (0 records)
 					if($dbResult > 0){
 						$isDataError = false;
 						// Getting t_media_match_wait data to be moved.
-						$getMediaData = $this->db->getData("*",self::databaseTable,$condition."=?",$key);
-						$condition1 = "compe_media_code";
-						//$key1 = array($getMediaData[0]["media_code"]);
-						$key1 = array($getMediaData[0]["compe_media_code"]);
-						$getCompMediaName = $this->rds_db->getData("compe_media_name",self::databaseGetValue1,$condition1."=?",$key1);
-						$getMediaName = $this->rds_db->getData("media_name",self::databaseGetValue1,$condition1."=?",$key1);
+						$getMediaData = $this->db->getData("*",self::databaseTable,$condition1."=?",$key);
+						$compe_media_code = $getMediaData[0][$condition2];
+						$key1 = array($compe_media_code);
+						$getCompMediaName = $this->rds_db->getData("compe_media_name",self::databaseGetValue1,$condition2."=?",$key1);
+						$getMediaName = $this->rds_db->getData("media_name",self::databaseGetValue1,$condition2."=?",$key1);
 						if(!$getCompMediaName || !$getMediaName){
-							$this->logger->error($condition1." = ".$getMediaData[0]["compe_media_code"]. " No match Found in ".self::databaseGetValue1);
-							throw new Exception("Process9 ".$condition1." = ".$getMediaData[0]["compe_media_code"]." No .match Found in ".self::databaseGetValue1);
+							$this->logger->error($condition2." = ".$compe_media_code. " No match Found in ".self::databaseGetValue1);
+							throw new Exception("Process9 ".$condition2." = ".$compe_media_code." No .match Found in ".self::databaseGetValue1);
 						} 
 						if(empty($this->tmpCurrentIdArray[$data[$office_id]])){
 							// 顧客コード検索
@@ -238,13 +238,19 @@ class Process9 {
 							$finalArray = $this->mergeArray($getMediaData,$finalArray,$data[$office_id]);
 							$finalArray = $this->mergeArray($getCorporationCode,$finalArray,$data[$office_id]);
 							
-							$this->setForceMatchUrl($finalArray);
+							if(in_array($compe_media_code, $FORCE_MATCH_COMPE_MEDIA_CODES)){
+								// compe_media_code が対応している場合のみm_force_match_url へ更新を行う
+								$this->logger->debug("m_force_match_url 更新あり [".$condition2."=".$compe_media_code."]");
+								$this->setForceMatchUrl($finalArray);
+							} else {
+								$this->logger->debug("m_force_match_url 更新なし [".$condition2."=".$compe_media_code."]");
+							}
 							$mdaData = $this->unsetKeys($finalArray);
 							
 							$this->setMediaData($mdaData[0]);
 						}
 					} else {
-						$this->logger->info($condition." = ".$data[$media_code]. " No match Found in ".self::databaseTable);
+						$this->logger->info($condition1." = ".$data[$media_code]. " No match Found in ".self::databaseTable);
 					}
 					$counter++;
 					if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($list)){
@@ -334,7 +340,11 @@ class Process9 {
 			'claim_bp_code',		// 請求取引先CD
 			'comp_no',				// COMP No
 			'recruit_emp_form',		// 募集雇用形態
-			'media_type_details');	// 媒体種別詳細
+			'media_type_details',	// 媒体種別詳細
+			'main_code',
+			'sub_code',
+			'job_id'
+		);
 		foreach($removeKeys as $key){
 			unset($array[0][$key]);
 		}
@@ -491,7 +501,7 @@ class Process9 {
 					// 存在しない場合、m_corporation_bakにから取得
 					$mRecord = $this->rds_db->getData('*',self::databaseGetValue3, $condition1." = ?", array($code));
 					if(!empty($mRecord)){
-						$result = $this->updateCorporation($mRecord);
+						$result = $this->insertCorporation($mRecord);
 						if(!$result){
 							$this->logger->error("Failed to insert [$condition1 : $code] to ". self::databaseGetValue2);
 							throw new Exception("Process9 Failed to insert [$condition1 : $code] to ". self::databaseGetValue2);
@@ -519,7 +529,7 @@ class Process9 {
 					$code = $mRecord[0][$condition1];
 					$value = array($condition1 => $code);
 					
-					$result = $this->updateCorporation($mRecord);
+					$result = $this->insertCorporation($mRecord);
 					if(!$result){
 						$this->logger->error("Failed to insert [$condition1 : $code, $condition2 : $office_id] to ". self::databaseGetValue2);
 						throw new Exception("Process9 Failed to insert [$condition1 : $code, $condition2 : $office_id] to ". self::databaseGetValue2);
@@ -543,7 +553,7 @@ class Process9 {
 	 * update m_corporation
 	 * @return array mRecord 
 	 */
-	function updateCorporation($mRecord){
+	function insertCorporation($mRecord){
 		// m_corporationに新規作成
 		
 		//prepare the update fields
@@ -574,11 +584,23 @@ class Process9 {
 		$sub_code = $record[0]['sub_code'];
 		$job_id = $record[0]['job_id'];
 		
-		$dataCount = $this->db->getDataCount(self::databaseInsertTable2, "main_code=? and sub_code=? and job_id=?", array($main_code, $sub_code, $job_id));
+		if (empty($corporation_code)) {
+			$corporation_code = NULL;
+		}
+		$condition = "main_code=? and sub_code=?";
+		$params= array($main_code, $sub_code);
+		if (empty($job_id) || $job_id == NULL) {
+			$condition = $condition." and job_id IS NULL";
+		} else {
+			$params= array_merge($params,array($job_id));
+			$condition = $condition." and job_id=? ";
+		}
+		
+		$dataCount = $this->db->getDataCount(self::databaseInsertTable2, $condition, $params);
 		if($dataCount <= 0 ){ // Data not found, insert
 			$this->logger->error("Record not found corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id in ".self::databaseInsertTable2.".");
 		} else { // Data found, update
-			$result = $this->db->updateData(self::databaseInsertTable2, array("corporation_code"=>$corporation_code), "main_code=? and sub_code=? and job_id=?", array($main_code, $sub_code, $job_id));
+			$result = $this->db->updateData(self::databaseInsertTable2, array("corporation_code"=>$corporation_code), $condition, $params);
 			if(!$result){
 				$this->logger->error("Failed to update corporation_code of row with corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ". self::databaseInsertTable2);
 			} else {
@@ -619,13 +641,13 @@ class Process9 {
 					$isDataError = false;
 					// Getting t_media_match_wait data to be moved.
 					$getMediaData = $this->db->getData("*",self::databaseTable,$condition1."=?",$key1);
-					
-					$key3 = array($getMediaData[0]["compe_media_code"]);
+					$compe_media_code = $getMediaData[0][$condition3];
+					$key3 = array($compe_media_code);
 					$getCompMediaName = $this->rds_db->getData("compe_media_name",self::databaseGetValue1,$condition3."=?",$key3);
 					$getMediaName = $this->rds_db->getData("media_name",self::databaseGetValue1,$condition3."=?",$key3);
 					if(!$getCompMediaName || !$getMediaName){
-						$this->logger->error($condition3." = ".$getMediaData[0]["compe_media_code"]. " No match Found in ".self::databaseGetValue1);
-						throw new Exception("Process9 ".$condition3." = ".$getMediaData[0]["compe_media_code"]." No .match Found in ".self::databaseGetValue1);
+						$this->logger->error($condition3." = ".$compe_media_code. " No match Found in ".self::databaseGetValue1);
+						throw new Exception("Process9 ".$condition3." = ".$compe_media_code." No .match Found in ".self::databaseGetValue1);
 					}
 					
 					$codeList2 = $this->rds_db->getData($condition2,self::databaseGetValue2, $condition2." = ?", $key2);
@@ -633,7 +655,7 @@ class Process9 {
 						// 存在しない場合、m_corporation_bakにから取得
 						$mRecord = $this->rds_db->getData('*',self::databaseGetValue3, $condition2." = ?", $key2);
 						if(!empty($mRecord)){
-							$result = $this->insertUpdateCorporation($mRecord);
+							$result = $this->insertCorporation($mRecord);
 							if(!$result){
 								$this->logger->error("Failed to insert [$condition2 : $corporation_code] to ". self::databaseGetValue2);
 								throw new Exception("Process9 Failed to insert [$condition2 : $corporation_code] to ". self::databaseGetValue2);
@@ -675,21 +697,27 @@ class Process9 {
 		$condition = "media_code";
 		$media_code = $record[$condition];
 		//$this->logger->debug(var_export($record , true));
-		
-		// insert Data
-		$result = $this->crm_db->insertData(self::databaseInsertTable1, $record);
-		if($result){
-			// delete Data for the item: 「媒体コード」=「t_media_match_wait.media_code」
-			$result = $this->db->deleteData(self::databaseTable, $condition." = ?", array($media_code));
+		$dataCount = $this->crm_db->getDataCount(self::databaseInsertTable1, $condition." = ?", array($media_code));
+		if($dataCount <= 0 ){
+			// insert Data
+			$result = $this->crm_db->insertData(self::databaseInsertTable1, $record);
 			if($result){
-				$this->logger->info("Data Successfully Moved ".$condition." = ".$media_code);
+				$this->logger->info("Inserting row [$condition: $media_code] to ". self::databaseInsertTable1);
+				// delete Data for the item: 「媒体コード」=「t_media_match_wait.media_code」
+				$result = $this->db->deleteData(self::databaseTable, $condition." = ?", array($media_code));
+				if($result){
+					$this->logger->info("Data Successfully Moved ".$condition." = ".$media_code);
+				}else{
+					$this->logger->error("Failed to deleteData".self::databaseTable.$condition." = ".$media_code);
+					throw new Exception("Process9 Failed to deleteData".self::databaseTaWble." ".$condition." = ".$media_code);
+				}
 			}else{
-				$this->logger->error("Failed to deleteData".self::databaseTable.$condition." = ".$media_code);
-				throw new Exception("Process9 Failed to deleteData".self::databaseTaWble." ".$condition." = ".$media_code);
+				$this->logger->error("Failed to insertData".self::databaseInsertTable1." ".$condition." = ".$media_code);
+				throw new Exception("Process9 Failed to insertData".self::databaseInsertTable1." ".$condition." = ".$media_code);
 			}
-		}else{
-			$this->logger->error("Failed to insertData".self::databaseInsertTable1." ".$condition." = ".$media_code);
-			throw new Exception("Process9 Failed to insertData".self::databaseInsertTable1." ".$condition." = ".$media_code);
+		} else {
+			$this->logger->error("Database Result for ".$condition." = ".$media_code ." is ".self::databaseInsertTable1);
+			throw new Exception("Process9 Database Result for ".$condition." = ".$media_code ." is ".self::databaseInsertTable1);
 		}
 		return true;
 	}

@@ -88,7 +88,7 @@ class Process6 {
 					$this->db->commit();
 					while ($offsetCount <=self::OFFSET_LIMIT) {
 						$offset = ($limit * $offsetCount);
-						$csvList = $this->db->getLimitOffsetData("*", self::WK_B_TABLE2, null, array(), $limit, $offset);
+						$csvList = $this->db->getLimitOffsetData("*", self::WK_B_TABLE2, NULL, array(), $limit, $offset);
 						if (count($csvList) === 0) {
 							// 配列の値がすべて空の時の処理
 							break;
@@ -226,13 +226,6 @@ class Process6 {
 					// Move the process to the next record
 					$this->logger->error("Error found in data [$pKey1 = $officeId]");
 				} else {
-					$recordCount1 = $this->recolin_db->getDataCount(self::TABLE_1, $pKey1."=?", array($officeId));
-					if($recordCount1 > 0){// if search result != 0, delete the search record
-						$currentDate = date("Y/m/d H:i:s");
-						$lblParam["update_date"] = $currentDate;
-						$lblParam["update_user_code"] = $SYSTEM_USER;
-					}
-				
 					// If all fields are valid and
 					$result1 = $this->recolin_db->insertUpdateData(self::TABLE_1, $lblParam, $pKey1);
 					if($result1) {
@@ -316,7 +309,7 @@ class Process6 {
 										"corporation_code"=>$newCorp[0]["corporation_code"],
 										"office_id"=>$officeId,
 										"match_result"=>"A",
-										"match_detail"=>null,
+										"match_detail"=>NULL,
 										"name_approach_code"=>$newCorp[0]["corporation_code"],
 										"name_approach_office_id"=>$officeId,
 										"current_data_flag"=>"1",
@@ -349,7 +342,6 @@ class Process6 {
 						$this->isError = true;
 						$this->logger->error("Failed to register ROW[$row] : [$pKey1 = $officeId] to $tbl");
 						throw new Exception("Process6 Failed to register ROW[$row] : [$pKey1 = $officeId] to $tbl");
-
 					}
 
 					$this->logger->debug("Registered [$pKey1 = $officeId]");
@@ -370,23 +362,23 @@ class Process6 {
 	}
 
 	/* 
-	 * 数値系カラムに対する null -> 0 への変換  
+	 * 数値系カラムに対する NULL -> 0 への変換  
 	 */
 	private function setLbcParams($data) {
 		// 会社状況フラグ 0-15の数値  NULL：非倒産 の場合に 0:非倒産 に変換
-		if ($data["company_stat"] === null && $data["company_stat_name"] === "非倒産"){ 
+		if ($data["company_stat"] === NULL && $data["company_stat_name"] === "非倒産"){ 
 			$data["company_stat"] = 0;
 		}
 		// 事業所状況フラグ 0-9の数値  NULL：非閉鎖 の場合に 0:非閉鎖 に変換
-		if ($data["office_stat"] === null && $data["office_stat_name"] === "非閉鎖"){
+		if ($data["office_stat"] === NULL && $data["office_stat_name"] === "非閉鎖"){
 			$data["office_stat"] = 0;
 		}
 		// 電話番号コールチェックフラグ 0-9の数値  NULLの場合に 0（未チェック/番号なしの意味） に変換
-		if ($data["tel_cc_flag"] === null && $data["tel_cc_date"] === null){
+		if ($data["tel_cc_flag"] === NULL && $data["tel_cc_date"] === NULL){
 			$data["tel_cc_flag"] = 0;
 		}
 		// FAX番号コールチェックフラグ 0-9の数値  NULLの場合に 0（未チェック/番号なしの意味） に変換
-		if ($data["fax_cc_flag"] === null && $data["fax_cc_date"] === null){
+		if ($data["fax_cc_flag"] === NULL && $data["fax_cc_date"] === NULL){
 			$data["fax_cc_flag"] = 0;
 		}
 		return $data;
@@ -435,7 +427,24 @@ class Process6 {
 		$data['dispatch_licensing_toku'] = NULL;
 		$data['dispatch_licensing_sho'] = NULL;
 		$data['nego_record_date'] = NULL;
-
+		
+		$address3 = $data['address3'];
+		if (array_key_exists('address4', $data)) {
+			$address3 = $address3.$data['address4'];
+			unset($data['address4']);
+		}
+		if (array_key_exists('address5', $data)) {
+			$address3 = $address3.$data['address5'];
+			unset($data['address5']);
+		}
+		if (array_key_exists('address6', $data)) {
+			$address3 = $address3.$data['address6'];
+			unset($data['address6']);
+		}
+		$data['address3'] = $address3;
+		
+		$addressAll = $data['address1'].$data['address2'].$data['address3'];
+		$data['addressall'] = $addressAll;
 		return $data;
 	}
 
@@ -444,26 +453,39 @@ class Process6 {
 	 */
 	private function setParams($data = array(), $addFields = false) {
 		if($addFields) {
+			$address3 = $data['address3'];
+			if (array_key_exists('address4', $data)) {
+				$address3 = $address3.$data['address4'];
+				unset($data['address4']);
+			}
+			if (array_key_exists('address5', $data)) {
+				$address3 = $address3.$data['address5'];
+				unset($data['address5']);
+			}
+			if (array_key_exists('address6', $data)) {
+				$address3 = $address3.$data['address6'];
+				unset($data['address6']);
+			}
+			$data['address3'] = $address3;
+			
 			// additional fields
-			$addressAll = $data['address1'].$data['address2'];
-			$addressAll.= $data['address3'].$data['address4'];
-			$addressAll.= $data['address5'].$data['address6'];
+			$addressAll = $data['address1'].$data['address2'].$data['address3'];
 			$data['addressall'] = $addressAll;
 			$data['business_type'] = $data['industry_code1'];
 			// 会社状況フラグ 0-15の数値  NULL：非倒産 の場合に 0:非倒産 に変換
-			if ($data["company_stat"] === null && $data["company_stat_name"] === "非倒産"){ 
+			if ($data["company_stat"] === NULL && $data["company_stat_name"] === "非倒産"){ 
 				$data["company_stat"] = 0;
 			}
 			// 事業所状況フラグ 0-9の数値  NULL：非閉鎖 の場合に 0:非閉鎖 に変換
-			if ($data["office_stat"] === null && $data["office_stat_name"] === "非閉鎖"){
+			if ($data["office_stat"] === NULL && $data["office_stat_name"] === "非閉鎖"){
 				$data["office_stat"] = 0;
 			}
 			// 電話番号コールチェックフラグ 0-9の数値  NULLの場合に 0（未チェック/番号なしの意味） に変換
-			if ($data["tel_cc_flag"] === null && $data["tel_cc_date"] === null){
+			if ($data["tel_cc_flag"] === NULL && $data["tel_cc_date"] === NULL){
 				$data["tel_cc_flag"] = 0;
 			}
 			// FAX番号コールチェックフラグ 0-9の数値  NULLの場合に 0（未チェック/番号なしの意味） に変換
-			if ($data["fax_cc_flag"] === null && $data["fax_cc_date"] === null){
+			if ($data["fax_cc_flag"] === NULL && $data["fax_cc_date"] === NULL){
 				$data["fax_cc_flag"] = 0;
 			}
 			return $data;
@@ -629,9 +651,9 @@ class Process6 {
 					"address1"                   => "L:256,J",
 					"address2"                   => "L:256",
 					"address3"                   => "L:256",
-					"address4"                   => "L:256",
-					"address5"                   => "L:256",
-					"address6"                   => "L:256",
+					"address4"                   => "",//削除対処
+					"address5"                   => "",//削除対処
+					"address6"                   => "",//削除対処
 					"tel"                        => "L:13,N",
 					"fax"                        => "L:13,N",
 					"office_number"              => "D",

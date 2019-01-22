@@ -424,9 +424,9 @@ class Process5{
 			"60"=>"address1",
 			"61"=>"address2",
 			"62"=>"address3",
-			"63"=>"address4",
-			"64"=>"address5",
-			"65"=>"address6",
+			//"63"=>"address4",
+			//"64"=>"address5",
+			//"65"=>"address6",
 			"66"=>"tel",
 			"67"=>"fax",
 			"68"=>"office_number",
@@ -600,10 +600,25 @@ class Process5{
 	 * @return array - merged array
 	 */
 	private function insertDefaultValue2($array){
+		$address3 = $array['address3'];
+		if (array_key_exists('address4', $array)) {
+			$address3 = $address3.$data['address4'];
+			unset($array['address4']);
+		}
+		if (array_key_exists('address5', $array)) {
+			$address3 = $address3.$array['address5'];
+			unset($array['address5']);
+		}
+		if (array_key_exists('address6', $array)) {
+			$address3 = $address3.$array['address6'];
+			unset($array['address6']);
+		}
+		$array['address3'] = $address3;
+		
 		$addedFields = array(
-			"92" => $array['company_addr1'].$array['company_addr2'].$array['company_addr3'].$array['company_addr4'].$array['company_addr5'].$array['company_addr6'], //addressall (company_addr 1-6) 60-65
+			"92" => $array['company_addr1'].$array['company_addr2'].$array['company_addr3'], //addressall (company_addr 1-6) 60-65
 			"93" => $array['industry_code1'] //business_type (industry_code1)
-			);
+		);
 		return array_merge($array, $addedFields);
 	}
 	/**
@@ -615,7 +630,7 @@ class Process5{
 		$addedFields = array(
 			"94" => null, // latitude
 			"95" => null // longitude
-			);
+		);
 		return array_merge($array, $addedFields);
 	}
 
