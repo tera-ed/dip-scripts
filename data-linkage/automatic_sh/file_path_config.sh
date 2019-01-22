@@ -1,8 +1,10 @@
-#!/bin/bash
-# file_path_config.sh
-cd `dirname $0`
-
-# ----------------------------------
+#################################################
+#! /bin/bash
+#
+# ファイル名：file_path_config.sh
+#
+#################################################
+export LANG=ja_JP.UTF-8
 
 BACKUP_FILE_NAME_PATTERN="_comp"
 
@@ -48,7 +50,7 @@ MAPING_REQUEST_DIR_PATH="/var/csv/media_request"
 MAPING_RESPONSE_DIR_PATH="/var/csv/media_response"
 MAPING_RESPONSE_OLD_DIR_PATH=${MAPING_RESPONSE_DIR_PATH}"/old"
 
-TABAITAI_DIR_PATHS=("/home/teramgmt/data-linkage-nayose/tabaitai_csv")
+TABAITAI_DIR_PATHS=("/home/teramgmt/oya_work/tabaitai_csv")
 
 # ----------------------------------
 

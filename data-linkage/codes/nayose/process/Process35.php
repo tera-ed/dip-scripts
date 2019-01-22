@@ -16,7 +16,7 @@ class Process35{
 		$this->logger = $logger;
 		$this->mail = new Mail();
 	}
-	
+
 	/**
 	 * Execute Process35
 	 */
@@ -37,7 +37,7 @@ class Process35{
 			throw $e;
 		}
 	}
-	
+
 	/**
 	 * Rename the used folder name
 	 * @param string $dir directory
@@ -47,7 +47,20 @@ class Process35{
 		try{
 			//add 「_comp」 in the end of the name
 			$compFolderePath = rtrim($dir, '/').'_comp';
-			
+			$this->moveDir($dir, $compFolderePath);
+		}catch(Exception $e){
+			throw $e;
+		}
+	}
+	
+	/**
+	 * move directory
+	 * @param string $dir directory
+	 * @param string $compFolderePath backup directory
+	 * @throws Exception
+	 */
+	function moveDir($dir, $compFolderePath){
+		try{
 			//$this->logger->debug($dir);
 			if(glob($dir)){
 				foreach(glob($dir.'*/') as $f_name1){

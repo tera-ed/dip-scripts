@@ -1,6 +1,16 @@
-#!/bin/bash
-# move_tabaitai.sh
-cd `dirname $0`
+#################################################
+#! /bin/bash
+#
+# 他媒体ファイル移動
+# 対応するcsv を PHP対応パス(../data-linkage-nayose/codes/tmp/csv/Import/after/日付(yyyyMMdd)_11)へ移動
+# ディレクトリパスを確認して起動
+# ファイル名：move_tabaitai.sh
+#
+# 起動方法：
+# bash move_tabaitai.sh
+#
+#################################################
+export LANG=ja_JP.UTF-8
 
 # ----------------------------------
 
@@ -11,8 +21,8 @@ source ./utils.sh
 # config
 
 # 読込ファイルパターン名
-INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI})
-#INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_PATTERN_FORCE})
+#INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI})
+INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_PATTERN_FORCE})
 
 # 起動有無
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
@@ -37,11 +47,10 @@ COUNT=0
 
 # 開始
 function move_tabaitai_csv {
-  my_echo "move_tabaitai_csv $1 [$2]"
+  debug_echo "move_tabaitai_csv $1 [$2]"
   input_dir=$1
   pattern=$2
 
-  count=0
   num_of_csv_files1=`find ${input_dir} -maxdepth 1 -name ${pattern} -type f | wc -l | sed -e 's/ //g'`
   if [ ${num_of_csv_files1} -gt 0 ] ; then
     # 取込ファイルが存在する
@@ -63,9 +72,7 @@ function move_tabaitai_csv {
 
 # 開始
 function main {
-  echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  exit_if_on_processing
-  create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
+  start_time
 
   is_processing=${FALSE}
   if [ "$(ls ./${PROCESSING1}* 2>/dev/null)" = '' ] ; then
@@ -80,29 +87,27 @@ function main {
         COUNT=$(( COUNT + ${num_of_csv_files} ))
         
         if [ ${COUNT} -ge ${MAX_TORIKOMI_COUNT} ] ; then
-          echo "already creating_mda_request csv files [path : "${output_dir_path}"]. exit."
+          info_echo "already creating_mda_request csv files [path : "${output_dir_path}"]. exit."
           is_processing=${FALSE}
           break
         fi
       done
     fi
   else
-    echo "during startup creating_mda_request.sh. exit."
+    info_echo "during startup creating_mda_request.sh. exit."
   fi
 
   if [ ${is_processing} = ${TRUE} ] ; then
-
-    if [ ! -e ${MOVE_TODAY_DIR} ]; then
-      # 存在しない場合
-      mkdir ${MOVE_TODAY_DIR}
-    fi
-
+    make_dir ${MOVE_TODAY_DIR}
     # 前日P11未取込
     DIR1=`date -d "1 day ago" +'%Y%m%d'`"_11"
     input_csv_fullpath_array=(${IMPORT_AFTER_DIR_PATH}/${DIR1})
 
     for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
-      
+      if [ ${IS_TABAITAI_START} = ${TRUE} ] ; then
+        break
+      fi
+
       for input_csv_fullpath1 in ${input_csv_fullpath_array[@]}; do
         if [ -e ${input_csv_fullpath1} ]; then
           if [ ${IS_TABAITAI_START} = ${TRUE} ] ; then
@@ -122,6 +127,11 @@ function main {
         fi
       done
     done
+  fi
+  
+  if [ ${COUNT} = 0 ] ; then
+    # 存在しない場合
+    info_echo "no tabaitai csv files. exit."
   fi
 
   remove_dir ${MOVE_TODAY_DIR}

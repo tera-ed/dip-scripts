@@ -192,6 +192,12 @@ $SEQUENCE['MEDIA_CODE']['lpad']   = true;
 $SEQUENCE['MEDIA_CODE']['len']    = 9;
 $SEQUENCE['MEDIA_CODE']['pad']    = "0";
 
+// ----------------------------
+// m_force_match_url対応compe_media_code
+// ----------------------------
+$FORCE_MATCH_COMPE_MEDIA_CODES = array('MMM0000001', 'MMM0000064');
+
+
 // If an attempt to convert "ASCII" text to "UTF-8",
 // the result will always return in "ASCII".
 // It is necessary to force a specific search order for the conversion to work.

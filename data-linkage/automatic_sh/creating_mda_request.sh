@@ -1,6 +1,16 @@
-#!/bin/bash
-# creating_mda_request.sh
-cd `dirname $0`
+#################################################
+#! /bin/bash
+#
+# 他媒体取込のみ 自動化(P11)
+# PHP対応パス(../data-linkage-nayose/codes/tmp/csv/Import/after/日付(yyyyMMdd)_11)から
+# 取込他媒体CSVがあればProcess11バッチを起動
+# ファイル名：creating_mda_request.sh
+#
+# 起動方法：
+# bash creating_mda_request.sh
+#
+#################################################
+export LANG=ja_JP.UTF-8
 
 # ----------------------------------
 
@@ -34,15 +44,13 @@ MOVE_TODAY_DIR=${IMPORT_AFTER_DIR_PATH}/`date +'%Y%m%d'`"_11"
 
 # 開始
 function main {
-  echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  exit_if_on_processing
-  create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
+  start_time
 
   is_processing=${FALSE}
-  if [ "$(ls ./${PROCESSING2}* 2>/dev/null)" = '' -a "$(ls ./${MDA_RESULT_INPORT_PROCESSING}* 2>/dev/null)" = '' ] ; then
+  if [ "$(ls ./${PROCESSING2}* 2>/dev/null)" = '' ] ; then
     is_processing=${TRUE}
   else
-    echo "during startup processing_mda_result_import.sh. exit."
+    info_echo "during startup processing_mda_result_import.sh. exit."
   fi
 
   if [ ${is_processing} = ${TRUE} ] ; then
@@ -72,7 +80,7 @@ function main {
       tabaitai_torikomi_batch_start
     else
       # 存在しない場合
-      echo "no new csv files. exit."
+      info_echo "no new csv files. exit."
     fi
   fi
 

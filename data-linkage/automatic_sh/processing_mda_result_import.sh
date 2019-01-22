@@ -1,6 +1,16 @@
-#!/bin/bash
-# processing_mda_result_import.sh
-cd `dirname $0`
+#################################################
+#! /bin/bash
+#
+# 次世代マッチング結果取込 自動化(P9)
+# 対応パス(../data-linkage-nayose/codes/tmp/nayose_csv/Export/before/日付(yyyyMMdd)_comp)から対応ファイル(*_MDA_Result.csv)を
+# 対応パス(../data-linkage-nayose/codes/tmp/csv/Import/after/日付(yyyyMMdd)_9)へ移動し、Process9バッチを起動
+# ファイル名：processing_mda_result_import.sh
+#
+# 起動方法：
+# bash processing_mda_result_import.sh
+#
+#################################################
+export LANG=ja_JP.UTF-8
 
 # ----------------------------------
 
@@ -34,44 +44,38 @@ MOVE_TODAY_DIR=${IMPORT_AFTER_DIR_PATH}/`date +'%Y%m%d'`"_9"
 
 # 対応CSVを移動
 function tabaitai_csv_file {
-  my_echo "tabaitai_csv_file $1"
+  debug_echo "tabaitai_csv_file $1"
   one_dir=$1
+  
   if [ -e ${one_dir} ]; then
     for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
       if [ -e ${input_csv_fullpath} ]; then
         num_of_csv_files1=`find ${one_dir} -maxdepth 1 -regex ${input_file_name_pattern} -type f | wc -l | sed -e 's/ //g'`
         if [ ${num_of_csv_files1} -gt 0 ] ; then
           # 取込ファイルが存在する
-
-          if [ ! -e ${MOVE_TODAY_DIR} ]; then
-            # 存在しない場合
-            mkdir ${MOVE_TODAY_DIR}
-          fi
-
           input_csvfile_fullpath_array=`find ${one_dir} -maxdepth 1 -regex ${input_file_name_pattern} -type f | sort`
           for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
-             # 移動
+            # 移動
             move_input_csv_file ${input_csvfile_fullpath} ${MOVE_TODAY_DIR}/
             # バッチフラグ
             if [ ${IS_LBC_BACH_START} = ${FALSE} ] ; then
               IS_LBC_BACH_START=${TRUE}
             fi
           done
+          
         fi
       fi
     done
-
-    remove_dir ${one_dir}
   fi
+  
+  remove_dir ${one_dir}
 }
 
 # ----------------------------------
 
 # 開始
 function main {
-  echo 'start_time '`date "+%Y/%m/%d %H:%M:%S.%N"`
-  exit_if_on_processing
-  create_flagfile_about_processing ${FILENAME_ABOUT_PROCESSING}
+  start_time
 
   is_processing=${FALSE}
   if [ "$(ls ./${PROCESSING1}* 2>/dev/null)" = '' ] ; then
@@ -83,15 +87,17 @@ function main {
     if [ -e ${output_dir_path} ]; then
       num_of_csv_files=`find ${output_dir_path} -type f -name "${INPUT_FILE_NAME_PATTERN_TABAITAI}" -type f | wc -l`
       if [ ${num_of_csv_files} -gt 0 ] ; then
-        echo "already creating_mda_request csv files [path : "${output_dir_path}"]. exit."
+        info_echo "already creating_mda_request csv files [path : "${output_dir_path}"]. exit."
         is_processing=${FALSE}
       fi
     fi
   else
-    echo "during startup creating_mda_request.sh. exit."
+    info_echo "during startup creating_mda_request.sh. exit."
   fi
   
   if [ ${is_processing} = ${TRUE} ] ; then
+    make_dir ${MOVE_TODAY_DIR}
+    
     # 当日取込結果
     DIR1=`date +'%Y%m%d'`${BACKUP_FILE_NAME_PATTERN}
     # 前日取込結果
@@ -104,18 +110,15 @@ function main {
     for input_csv_fullpath in ${input_csv_fullpath_array[@]}; do
       tabaitai_csv_file ${input_csv_fullpath}
     done
-    
-    
-    IS_LBC_BACH_START=${FALSE}
     if [ ${IS_LBC_BACH_START} = ${TRUE} ] ; then
       # 1つでもファイルが存在する場合
       lbc_maching_batch_start
     else
       # 存在しない場合
-      echo "no new csv files. exit."
+      info_echo "no new csv files. exit."
     fi
   fi
-  
+  remove_dir ${MOVE_TODAY_DIR}
   end_time
 }
 
