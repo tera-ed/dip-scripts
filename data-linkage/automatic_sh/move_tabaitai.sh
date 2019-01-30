@@ -21,14 +21,13 @@ source ./utils.sh
 # config
 
 # 読込ファイルパターン名
-#INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI})
 INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_PATTERN_FORCE})
 
 # 起動有無
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
 # 起動有無パターン名
-PREFIX_OF_FILENAME_ON_PROCESSING=${PROCESSING5}
+PREFIX_OF_FILENAME_ON_PROCESSING="MOVE_TABAITAI_PROCESSING"
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
 #ログファイル名
@@ -36,6 +35,8 @@ LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
 #PHPバッチ起動
 IS_TABAITAI_START=${FALSE}
+
+TABAITAI_DIR_PATHS=("/home/teramgmt/oya_work/tabaitai_csv/1" "/home/teramgmt/oya_work/tabaitai_csv/2" "/home/teramgmt/oya_work/tabaitai_csv/3" "/home/teramgmt/oya_work/tabaitai_csv/4")
 
 #P11ディレクトリ
 MOVE_TODAY_DIR=${IMPORT_AFTER_DIR_PATH}/`date +'%Y%m%d'`"_11"

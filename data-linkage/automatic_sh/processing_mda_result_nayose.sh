@@ -57,9 +57,6 @@ function copy_gunzip_csv_file {
   input_gz_filename=`basename ${input_file_path}`
   input_csv_filename=`basename ${input_file_path} .gz`
   
-  #同一解凍ファイル
-  remove_file ${MOVE_TODAY_DIR}/${input_csv_filename}
-  
   # コピー
   `cp -f ${input_file_path} ${MOVE_TODAY_DIR}/`
   # 解凍

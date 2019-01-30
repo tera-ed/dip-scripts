@@ -40,16 +40,9 @@ cd $USERDIR
 
 	# クエリ実行
 	${MYSQL_DIR}mysql -vvv  --local_infile=1 -u ${MYSQL_USER} --password=${MYSQL_PASS} -h ${MYSQL_HOST} ${MYSQL_DB}<<EOF
-
--- 対象テーブルのTRUNCATE
--- TRUNCATE TABLE ${TMP_TBL};
-
--- 対象テーブルのDELETE
-DELETE FROM ${TMP_TBL};
-
 -- CSVファイルをインポート
 LOAD DATA LOCAL INFILE '${FILE_PASS}'
-INTO TABLE ${TMP_TBL}
+REPLACE INTO TABLE ${TMP_TBL}
 FIELDS
   TERMINATED BY ','
   ENCLOSED BY '"'

@@ -11,22 +11,22 @@
 
 class Process9 {
 	private $logger, $db, $crm_db, $rds_db, $validate, $mail;
+	private $media_mass_array, $latest_post_media_array;
 	private $isError = false;
 
-	const databaseTable = "t_media_match_wait_evacuation";
-	//const databaseTable = "t_media_match_wait";
+	const T_TABLE1 = "t_media_match_wait_evacuation";
+	//const T_TABLE1 = "t_media_match_wait";
+	const T_TABLE2 = "t_media_mass";
+	const T_TABLE3 = "t_latest_post_media";
 
-	const databaseInsertTable1 = "t_media_mass";
-	const databaseInsertTable2 = "m_force_match_url";
+	const M_TABLE1 = "m_media_mass";
+	const M_TABLE2 = "m_corporation";
+	const M_TABLE3 = "m_corporation_bak";
+	const M_TABLE4 = "m_force_match_url";
 
-	const databaseGetValue1 = "m_media_mass";
-	const databaseGetValue2 = "m_corporation";
-	const databaseGetValue3 = "m_corporation_bak";
-
-	const WK_L_TABLE = "wk_t_lbc_crm_link";
-
-	const WK_B_TABLE1 = 'wk_t_tmp_mda_result';
-	const WK_B_TABLE2 = 'wk_t_tmp_mda_force_result';
+	const WK_TABLE1 = "wk_t_lbc_crm_link";
+	const WK_TABLE2 = 'wk_t_tmp_mda_result';
+	const WK_TABLE3 = 'wk_t_tmp_mda_force_result';
 
 	const SHELL1 = 'load_wk_t_tmp_MDA_Result.sh';
 	const SHELL2 = 'load_wk_t_tmp_MDA_FORCE_Result.sh';
@@ -37,9 +37,11 @@ class Process9 {
 	private $tmpCurrentIdArray = Array();
 
 	function __construct($logger){
-			$this->logger = $logger;
-			$this->mail = new Mail();
-			$this->validate = new Validation($this->logger);
+		$this->logger = $logger;
+		$this->mail = new Mail();
+		$this->validate = new Validation($this->logger);
+		$this->media_mass_array = array();
+		$this->latest_post_media_array = array();
 	}
 
 	/**
@@ -63,66 +65,79 @@ class Process9 {
 				throw new Exception("File not found.", 602);
 			}
 			
-			$header1 = getDBField($this->db,self::WK_B_TABLE1);
-			$header2 = getDBField($this->db,self::WK_B_TABLE2);
+			$this->getMasterDataList();
+			
+			$header1 = getDBField($this->db,self::WK_TABLE2);
+			$header2 = getDBField($this->db,self::WK_TABLE3);
 			$limit = self::LIMIT;
 			if (!empty($files1)) {
 				foreach ($files1 as $fName) {
-					$offsetCount = 0;
-					$this->db->beginTransaction();
-					// Acquire from:「./tmp/csv/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_MDA_Result.csv」
-					if(shellExec($this->logger, self::SHELL1, $fName) === 0){
-						$this->db->commit();
-						while ($offsetCount <=self::OFFSET_LIMIT) {
-							$offset = ($limit * $offsetCount);
-							$csvList = $this->db->getLimitOffsetData("*", self::WK_B_TABLE1, null, array(), $limit, $offset);
-							if (count($csvList) === 0) {
-								// 配列の値がすべて空の時の処理
-								break;
+					try{
+						$offsetCount = 0;
+						$this->db->beginTransaction();
+						// Acquire from:「./tmp/csv/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_MDA_Result.csv」
+						if(shellExec($this->logger, self::SHELL1, $fName) === 0){
+							$this->db->commit();
+							while ($offsetCount <=self::OFFSET_LIMIT) {
+								$offset = ($limit * $offsetCount);
+								$csvList = $this->db->getLimitOffsetData("*", self::WK_TABLE2, null, array(), $limit, $offset);
+								if (count($csvList) === 0) {
+									// 配列の値がすべて空の時の処理
+									break;
+								}
+								$cntr += $this->processData($csvList, self::WK_TABLE2.",LIMIT:$limit,OFFSET:$offset", $header1);
+								$offsetCount++;
 							}
-							$cntr += $this->processData($csvList, self::WK_B_TABLE1.",LIMIT:$limit,OFFSET:$offset", $header1);
-							$offsetCount++;
+						} else {
+							// shell失敗
+							$this->db->rollback();
+							$this->logger->error("Error File : " . $fName);
+							throw new Exception("Process9 Failed to insert with " . self::SHELL1 . " to " . self::WK_TABLE2);
 						}
-					} else {
-						// shell失敗
-						$this->db->rollback();
-						$this->logger->error("Error File : " . $fName);
-						throw new Exception("Process9 Failed to insert with " . self::SHELL1 . " to " . self::WK_B_TABLE1);
+					} catch (Exception $e){
+						$this->moveErrorTabaitaiCsv($fName);
+						throw $e;
 					}
 				}
 			}
 			
 			if(!empty($files2)) {
 				foreach ($files2 as $fName) {
-					$offsetCount = 0;
-					$this->db->beginTransaction();
-					// Acquire from:「./tmp/csv/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_FORCE_Result.csv」
-					if(shellExec($this->logger, self::SHELL2, $fName) === 0){
-						$this->db->commit();
-						while ($offsetCount <=self::OFFSET_LIMIT) {
-							$offset = ($limit * $offsetCount);
-							$csvList = $this->db->getLimitOffsetData("*", self::WK_B_TABLE2, null, array(), $limit, $offset);
-							if (count($csvList) === 0) {
-								// 配列の値がすべて空の時の処理
-								break;
+					try{
+						$offsetCount = 0;
+						$this->db->beginTransaction();
+						// Acquire from:「./tmp/csv/Import/after/(yyyymmdd)/YYYYMMDDhhmmss_FORCE_Result.csv」
+						if(shellExec($this->logger, self::SHELL2, $fName) === 0){
+							$this->db->commit();
+							while ($offsetCount <=self::OFFSET_LIMIT) {
+								$offset = ($limit * $offsetCount);
+								$csvList = $this->db->getLimitOffsetData("*", self::WK_TABLE3, null, array(), $limit, $offset);
+								if (count($csvList) === 0) {
+									// 配列の値がすべて空の時の処理
+									break;
+								}
+								$cntr = $this->processForceData($csvList, self::WK_TABLE2.",LIMIT:$limit,OFFSET:$offset", $header2);
+								$offsetCount++;
 							}
-							$cntr = $this->processForceData($csvList, self::WK_B_TABLE1.",LIMIT:$limit,OFFSET:$offset", $header2);
-							$offsetCount++;
+						} else {
+							// shell失敗
+							$this->db->rollback();
+							$this->logger->error("Error File : " . $fName);
+							throw new Exception("Process9 Failed to insert with " . self::SHELL2 . " to " . self::WK_TABLE3);
 						}
-					} else {
-						// shell失敗
-						$this->db->rollback();
-						$this->logger->error("Error File : " . $fName);
-						throw new Exception("Process9 Failed to insert with " . self::SHELL2 . " to " . self::WK_B_TABLE2);
+					} catch (Exception $e){
+						$this->moveErrorTabaitaiCsv($fName);
+						throw $e;
 					}
-				
 				}
 			}
+			// t_latest_post_media更新・作成
+			$cntr = $this->latestPostMediaInsertData();
 		} catch (PDOException $e1){ // database error
 			$this->logger->debug("Error found in database.");
 			$this->disconnect(isset($cntr) && $cntr > 0);
 			
-			$this->mail->sendMail();
+			//$this->mail->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
 			// write down the error contents in the error file
@@ -135,13 +150,13 @@ class Process9 {
 			// and proceed to the next process number (ERR_CODE: 602)
 			// For system error pause process
 			if(602 != $e2->getCode()) {
-				$this->mail->sendMail();
+				//$this->mail->sendMail();
 				throw $e2;
 			}
 		}
 		if($this->isError){
 			// send mail if there is error
-			$this->mail->sendMail();
+			//$this->mail->sendMail();
 		}
 		
 		$this->disconnect();
@@ -193,7 +208,7 @@ class Process9 {
 	 *
 	 */
 	private function processData($list, $csv, $header){
-		global $MAX_COMMIT_SIZE;
+		global $MAX_COMMIT_SIZE, $FORCE_MATCH_COMPE_MEDIA_CODES;
 		$result = null; $counter = 0;
 		try {
 			$media_code = $header[0];
@@ -210,20 +225,18 @@ class Process9 {
 						$this->crm_db->beginTransaction();
 					}
 					//Search for the item: 「他媒体コード」=「t_media_match_wait.media_code」 record
-					$dbResult = $this->db->getDataCount(self::databaseTable,$condition1."=?",$key);
+					$dbResult = $this->db->getDataCount(self::T_TABLE1,$condition1."=?",$key);
 					//If the search results are not 0件 (0 records)
 					if($dbResult > 0){
 						$isDataError = false;
 						// Getting t_media_match_wait data to be moved.
-						$getMediaData = $this->db->getData("*",self::databaseTable,$condition1."=?",$key);
+						$getMediaData = $this->db->getData("*",self::T_TABLE1,$condition1."=?",$key);
 						$compe_media_code = $getMediaData[0][$condition2];
-						$key1 = array($compe_media_code);
-						$getCompMediaName = $this->rds_db->getData("compe_media_name",self::databaseGetValue1,$condition2."=?",$key1);
-						$getMediaName = $this->rds_db->getData("media_name",self::databaseGetValue1,$condition2."=?",$key1);
-						if(!$getCompMediaName || !$getMediaName){
-							$this->logger->error($condition2." = ".$compe_media_code. " No match Found in ".self::databaseGetValue1);
-							throw new Exception("Process9 ".$condition2." = ".$compe_media_code." No .match Found in ".self::databaseGetValue1);
-						} 
+						$getMediaName = $this->getMMediaMassList($compe_media_code);
+		 				if(!$getMediaName){
+							$this->logger->error($condition2." = ".$compe_media_code. " No match Found in ".self::M_TABLE1);
+							throw new Exception("Process9 ".$condition2." = ".$compe_media_code." No .match Found in ".self::M_TABLE1);
+						}
 						if(empty($this->tmpCurrentIdArray[$data[$office_id]])){
 							// 顧客コード検索
 							$getCorporationCode = $this->getCorporationCodeList($data[$office_id]);
@@ -234,23 +247,24 @@ class Process9 {
 							// 顧客コードが存在する
 							
 							// office_idは配列ではなく値を渡すよう修正 2017/09/29 tanaka mod
-							$finalArray = $this->mergeArray($getMediaName,$getCompMediaName,$data[$office_id]);
-							$finalArray = $this->mergeArray($getMediaData,$finalArray,$data[$office_id]);
+							$finalArray = $this->mergeArray($getMediaData,$getMediaName,$data[$office_id]);
 							$finalArray = $this->mergeArray($getCorporationCode,$finalArray,$data[$office_id]);
 							
 							if(in_array($compe_media_code, $FORCE_MATCH_COMPE_MEDIA_CODES)){
 								// compe_media_code が対応している場合のみm_force_match_url へ更新を行う
-								$this->logger->debug("m_force_match_url 更新あり [".$condition2."=".$compe_media_code."]");
+								//$this->logger->debug("m_force_match_url 更新あり [".$condition2."=".$compe_media_code."]");
 								$this->setForceMatchUrl($finalArray);
 							} else {
-								$this->logger->debug("m_force_match_url 更新なし [".$condition2."=".$compe_media_code."]");
+								//$this->logger->debug("m_force_match_url 更新なし [".$condition2."=".$compe_media_code."]");
 							}
-							$mdaData = $this->unsetKeys($finalArray);
-							
-							$this->setMediaData($mdaData[0]);
+							$this->setMediaData($finalArray);
+						} else {
+							// エラー
+							$this->logger->error($condition1." = ".$data[$media_code].", No Found in corporation_code");
+							throw new Exception("Process9 ".$condition1." = ".$data[$media_code].", No Found in corporation_code");
 						}
 					} else {
-						$this->logger->info($condition1." = ".$data[$media_code]. " No match Found in ".self::databaseTable);
+						$this->logger->info($condition1." = ".$data[$media_code]. " No match Found in ".self::T_TABLE1);
 					}
 					$counter++;
 					if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($list)){
@@ -311,8 +325,8 @@ class Process9 {
 		$array[0]['free_item4'] = $array[0]['media_type_details'];	// 媒体種別詳細
 		
 		// 20180308
-		$array[0]['address4'] = $array[0]['address3'];
-		$array[0]['address3'] = $array[0]['address2'];
+		//$array[0]['address4'] = $array[0]['address3'];
+		$array[0]['address3'] = $array[0]['address2'] . $array[0]['address3'];
 		$array[0]['address2'] = $array[0]['address1'];
 		$array[0]['address1'] = $array[0]['addr_prefe'];
 		
@@ -376,7 +390,7 @@ class Process9 {
 						// 「$val」が連想配列のため、「"corporation_code"」を抽出する 2017/09/29 tanaka mod
 						$corp_code = (is_array($val) && isset($val["corporation_code"])) ? $val["corporation_code"] : "";
 						// 同じLBCの顧客が分離された場合を考慮して、分離元顧客を検索
-						$correctCorp = $this->rds_db->getData("seperate_code",self::WK_L_TABLE,"corporation_code = ? and office_id = ? and current_data_flag = '1' and delete_flag is null and seperate_code is not null",[$corp_code,$office_id]);
+						$correctCorp = $this->rds_db->getData("seperate_code",self::WK_TABLE1,"corporation_code = ? and office_id = ? and current_data_flag = '1' and delete_flag is null and seperate_code is not null",[$corp_code,$office_id]);
 						// 分離元顧客が見つかればそちらを正しい顧客とする
 						if(sizeof($correctCorp) > 0){
 							// 「$correctCorp」が連想配列のため、「"seperate_code"」を抽出する 2017/09/29 tanaka mod
@@ -409,7 +423,7 @@ class Process9 {
 			foreach($array1 as $key=>$val){
 				// 20160308 sakai バッチテストのためにエラー回避
 				if($i!=0){
-					$this->logger->error("Failed to insertData create ".self::databaseGetValue2.":".$office_id);
+					$this->logger->error("Failed to insertData create ".self::M_TABLE2.":".$office_id);
 					break;
 				}
 				$i++;
@@ -448,16 +462,16 @@ class Process9 {
 			if (sizeof($corporationCodeList) > 0) {
 				while($row = array_shift($corporationCodeList)){
 					$corporation_code = $row['corporation_code'];
-					$dataCount = $this->rds_db->getDataCount(self::WK_L_TABLE, $condition, array($corporation_code, $office_id));
+					$dataCount = $this->rds_db->getDataCount(self::WK_TABLE1, $condition, array($corporation_code, $office_id));
 					if($dataCount > 0 ){
-						$result1 = $this->crm_db->deleteData(self::WK_L_TABLE, $condition, array($corporation_code, $office_id));
+						$result1 = $this->crm_db->deleteData(self::WK_TABLE1, $condition, array($corporation_code, $office_id));
 						if($result1){
 							$this->logger->info("Data Successfully Moved ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
 						}else{
-							throw new Exception("Process9 Failed to deleteData ".self::WK_L_TABLE." ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
+							throw new Exception("Process9 Failed to deleteData ".self::WK_TABLE1." ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
 						}
 					}
-					$result2 = $this->crm_db->insertData(self::WK_L_TABLE, 
+					$result2 = $this->crm_db->insertData(self::WK_TABLE1, 
 						array(
 							"corporation_code" => $corporation_code,
 							"office_id" =>  $office_id,
@@ -467,7 +481,7 @@ class Process9 {
 						)
 					);
 					if(!$result2){
-						throw new Exception("Process9 Failed to insertTable ".self::WK_L_TABLE." ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
+						throw new Exception("Process9 Failed to insertTable ".self::WK_TABLE1." ".$key1."=".$corporation_code.", ".$key2."=".$office_id);
 					}
 				}
 			}
@@ -488,59 +502,59 @@ class Process9 {
 		
 		$where = "current_data_flag = '1' AND delete_flag is null AND office_id = ?";
 		// ①wk_t_lbc_crm_linkから取得
-		$codeList1 = $this->rds_db->getData($condition1, self::WK_L_TABLE, $where, array($office_id));
+		$codeList1 = $this->rds_db->getData($condition1, self::WK_TABLE1, $where, array($office_id));
 		if($codeList1){
-			$this->logger->debug("wk_t_lbc_crm_linkから取得 あり");
+			//$this->logger->debug("wk_t_lbc_crm_linkから取得 あり");
 			while($row = array_shift($codeList1)){
 				$code = $row[$condition1];
 				$value = array($condition1 => $code);
 				
 				// ② wk_t_lbc_crm_link.corporation_codeからm_corporationを検索
-				$codeList2 = $this->rds_db->getData($condition1,self::databaseGetValue2, $condition1." = ?", array($code));
+				$codeList2 = $this->rds_db->getData($condition1,self::M_TABLE2, $condition1." = ?", array($code));
 				if(!$codeList2){
 					// 存在しない場合、m_corporation_bakにから取得
-					$mRecord = $this->rds_db->getData('*',self::databaseGetValue3, $condition1." = ?", array($code));
+					$mRecord = $this->rds_db->getData('*',self::M_TABLE3, $condition1." = ?", array($code));
 					if(!empty($mRecord)){
 						$result = $this->insertCorporation($mRecord);
 						if(!$result){
-							$this->logger->error("Failed to insert [$condition1 : $code] to ". self::databaseGetValue2);
-							throw new Exception("Process9 Failed to insert [$condition1 : $code] to ". self::databaseGetValue2);
+							$this->logger->error("Failed to insert [$condition1 : $code] to ". self::M_TABLE2);
+							throw new Exception("Process9 Failed to insert [$condition1 : $code] to ". self::M_TABLE2);
 						} else {
-							$this->logger->info("Inserting row [$condition1: $code] to ". self::databaseGetValue2);
+							$this->logger->info("Inserting row [$condition1: $code] to ". self::M_TABLE2);
 							$corporationCodeList = array_merge($corporationCodeList, array($value));
 						}
 					}else{
 						// エラー
-						$this->logger->error($condition1." = ".$code.", ".$condition2." = ".$office_id. " No match Found in ".self::databaseGetValue2);
-						throw new Exception("Process9 ".$condition1." = ".$code.", ".$condition2." = ".$office_id. " No match Found in ".self::databaseGetValue2);
+						$this->logger->error($condition1." = ".$code.", ".$condition2." = ".$office_id. " No match Found in ".self::M_TABLE2);
+						throw new Exception("Process9 ".$condition1." = ".$code.", ".$condition2." = ".$office_id. " No match Found in ".self::M_TABLE2);
 					}
 				} else {
 					$corporationCodeList = array_merge($corporationCodeList, array($value));
 				}
 			}
 		} else {
-			$this->logger->debug("wk_t_lbc_crm_linkから取得 なし");
+			//$this->logger->debug("wk_t_lbc_crm_linkから取得 なし");
 			// 存在しない場合、顧客から取得
-			$corporationCodeList = $this->rds_db->getData("corporation_code",self::databaseGetValue2,$condition2."=?", array($office_id));
+			$corporationCodeList = $this->rds_db->getData("corporation_code",self::M_TABLE2,$condition2."=?", array($office_id));
 			if(!$corporationCodeList){
 				// 存在しない場合、m_corporation_bakにから取得
-				$mRecord = $this->rds_db->getData('*',self::databaseGetValue3, $condition2." = ?", array($office_id));
+				$mRecord = $this->rds_db->getData('*',self::M_TABLE3, $condition2." = ?", array($office_id));
 				if(!empty($mRecord)){
 					$code = $mRecord[0][$condition1];
 					$value = array($condition1 => $code);
 					
 					$result = $this->insertCorporation($mRecord);
 					if(!$result){
-						$this->logger->error("Failed to insert [$condition1 : $code, $condition2 : $office_id] to ". self::databaseGetValue2);
-						throw new Exception("Process9 Failed to insert [$condition1 : $code, $condition2 : $office_id] to ". self::databaseGetValue2);
+						$this->logger->error("Failed to insert [$condition1 : $code, $condition2 : $office_id] to ". self::M_TABLE2);
+						throw new Exception("Process9 Failed to insert [$condition1 : $code, $condition2 : $office_id] to ". self::M_TABLE2);
 					} else {
-						$this->logger->info("Inserting row [$condition1 : $code, $condition2 : $office_id] to ". self::databaseGetValue2);
+						$this->logger->info("Inserting row [$condition1 : $code, $condition2 : $office_id] to ". self::M_TABLE2);
 						$corporationCodeList = array_merge($corporationCodeList, array($value));
 					}
 				}else{
 					// エラー
-					$this->logger->error($condition2." = ".$office_id. " No match Found in ".self::databaseGetValue2);
-					throw new Exception("Process9 ".$condition2." = ".$office_id. " No match Found in ".self::databaseGetValue2);
+					$this->logger->error($condition2." = ".$office_id. " No match Found in ".self::M_TABLE2);
+					throw new Exception("Process9 ".$condition2." = ".$office_id. " No match Found in ".self::M_TABLE2);
 				}
 			}
 			// wk_t_lbc_crm_linkに削除・新規作成
@@ -565,10 +579,10 @@ class Process9 {
 		unset($tableList[0]['update_user_code']);
 		unset($tableList[0]['delete_flag']);
 		$newTableList = $tableList[0];	
-		$dataCount = $this->crm_db->getDataCount(self::databaseGetValue2, "corporation_code=?", array($newTableList["corporation_code"]));
+		$dataCount = $this->crm_db->getDataCount(self::M_TABLE2, "corporation_code=?", array($newTableList["corporation_code"]));
 		if($dataCount == 0 ){ // Data not found, insert
 			$this->logger->debug("corporation_code = ".$newTableList["corporation_code"]);
-			return $this->crm_db->insertData(self::databaseGetValue2, $newTableList);
+			return $this->crm_db->insertData(self::M_TABLE2, $newTableList);
 		} else { // Data found, update
 			return true;
 		}
@@ -595,16 +609,22 @@ class Process9 {
 			$params= array_merge($params,array($job_id));
 			$condition = $condition." and job_id=? ";
 		}
-		
-		$dataCount = $this->db->getDataCount(self::databaseInsertTable2, $condition, $params);
-		if($dataCount <= 0 ){ // Data not found, insert
-			$this->logger->error("Record not found corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id in ".self::databaseInsertTable2.".");
-		} else { // Data found, update
-			$result = $this->db->updateData(self::databaseInsertTable2, array("corporation_code"=>$corporation_code), $condition, $params);
-			if(!$result){
-				$this->logger->error("Failed to update corporation_code of row with corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ". self::databaseInsertTable2);
+		$dataCount1 = $this->db->getDataCount(self::M_TABLE4, $condition, $params);
+		if($dataCount1 <= 0 ){ // Data not found, insert
+			$this->logger->error("Record not found corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ".self::M_TABLE4.".");
+			throw new Exception("Process9 Record not found corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ".self::M_TABLE4.".");
+		} else { 
+			$dataCount2 = $this->db->getDataCount(self::M_TABLE4, $condition." and corporation_code is null", $params);
+			if($dataCount2 > 0 ){ // Data found, update
+				$result = $this->db->updateData(self::M_TABLE4, array("corporation_code"=>$corporation_code), $condition, $params);
+				if(!$result){
+					//$this->logger->error("Failed to update corporation_code of row with corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ". self::M_TABLE4);
+					throw new Exception("Process9 Failed to update corporation_code of row with corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ". self::M_TABLE4);
+				} else {
+					$this->logger->info("Data found. Updating corporation_code of row with corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ". self::M_TABLE4);
+				}
 			} else {
-				$this->logger->info("Data found. Updating corporation_code of row with corporation_code: $corporation_code, main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ". self::databaseInsertTable2);
+				$this->logger->debug("Already update main_code: $main_code, sub_code: $sub_code, job_id: $job_id to ".self::M_TABLE4.".");
 			}
 		}
 		return true;
@@ -635,47 +655,39 @@ class Process9 {
 				}
 				
 				//Search for the item: 「他媒体コード」=「t_media_match_wait.media_code」 record
-				$dbResult = $this->db->getDataCount(self::databaseTable,$condition1."=?",$key1);
+				$dbResult = $this->db->getDataCount(self::T_TABLE1,$condition1."=?",$key1);
 				//If the search results are not 0件 (0 records)
 				if($dbResult > 0){
 					$isDataError = false;
 					// Getting t_media_match_wait data to be moved.
-					$getMediaData = $this->db->getData("*",self::databaseTable,$condition1."=?",$key1);
+					$getMediaData = $this->db->getData("*",self::T_TABLE1,$condition1."=?",$key1);
 					$compe_media_code = $getMediaData[0][$condition3];
-					$key3 = array($compe_media_code);
-					$getCompMediaName = $this->rds_db->getData("compe_media_name",self::databaseGetValue1,$condition3."=?",$key3);
-					$getMediaName = $this->rds_db->getData("media_name",self::databaseGetValue1,$condition3."=?",$key3);
-					if(!$getCompMediaName || !$getMediaName){
-						$this->logger->error($condition3." = ".$compe_media_code. " No match Found in ".self::databaseGetValue1);
-						throw new Exception("Process9 ".$condition3." = ".$compe_media_code." No .match Found in ".self::databaseGetValue1);
-					}
 					
-					$codeList2 = $this->rds_db->getData($condition2,self::databaseGetValue2, $condition2." = ?", $key2);
+					$getMediaMass = $this->getMMediaMassList($compe_media_code);
+					$codeList2 = $this->rds_db->getData($condition2,self::M_TABLE2, $condition2." = ?", $key2);
 					if(!$codeList2){
 						// 存在しない場合、m_corporation_bakにから取得
-						$mRecord = $this->rds_db->getData('*',self::databaseGetValue3, $condition2." = ?", $key2);
+						$mRecord = $this->rds_db->getData('*',self::M_TABLE3, $condition2." = ?", $key2);
 						if(!empty($mRecord)){
 							$result = $this->insertCorporation($mRecord);
 							if(!$result){
-								$this->logger->error("Failed to insert [$condition2 : $corporation_code] to ". self::databaseGetValue2);
-								throw new Exception("Process9 Failed to insert [$condition2 : $corporation_code] to ". self::databaseGetValue2);
+								$this->logger->error("Failed to insert [$condition2 : $corporation_code] to ". self::M_TABLE2);
+								throw new Exception("Process9 Failed to insert [$condition2 : $corporation_code] to ". self::M_TABLE2);
 							} else {
-								$this->logger->info("Inserting row [$condition2: $corporation_code] to ". self::databaseGetValue2);
+								$this->logger->info("Inserting row [$condition2: $corporation_code] to ". self::M_TABLE2);
 							}
 						}else{
 							// エラー
-							$this->logger->error($condition2." = ".$corporation_code." No match Found in ".self::databaseGetValue2);
-							throw new Exception("Process9 ".$condition2." = ".$corporation_code." No match Found in ".self::databaseGetValue2);
+							$this->logger->error($condition2." = ".$corporation_code." No match Found in ".self::M_TABLE2);
+							throw new Exception("Process9 ".$condition2." = ".$corporation_code." No match Found in ".self::M_TABLE2);
 						}
 					}
 					
-					$finalArray = array_merge($getMediaName[0], $getCompMediaName[0]);
-					$finalArray = array_merge($getMediaData[0], $finalArray);
+					$finalArray = array_merge($getMediaData[0], $getMediaMass[0]);
 					$finalArray = array_merge(array("corporation_code" => $corporation_code), $finalArray);
-					$finalArray = $this->unsetKeys(array($finalArray));
-					$this->setMediaData($finalArray[0]);
+					$this->setMediaData(array($finalArray));
 				} else {
-					$this->logger->info($condition1." = ".$data[$condition1]. " No match Found in ".self::databaseTable);
+					$this->logger->info($condition1." = ".$data[$condition1]. " No match Found in ".self::T_TABLE1);
 				}
 				$counter++;
 				if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($list)){
@@ -693,33 +705,156 @@ class Process9 {
 	 * insert media data
 	 * @return array record 
 	 */
-	function setMediaData($record){
-		$condition = "media_code";
-		$media_code = $record[$condition];
+	function setMediaData($finalArray){
+		$record = $this->unsetKeys($finalArray);
 		//$this->logger->debug(var_export($record , true));
-		$dataCount = $this->crm_db->getDataCount(self::databaseInsertTable1, $condition." = ?", array($media_code));
+		
+		$condition = "media_code";
+		$media_code = $record[0][$condition];
+		$dataCount = $this->crm_db->getDataCount(self::T_TABLE2, $condition." = ?", array($media_code));
 		if($dataCount <= 0 ){
 			// insert Data
-			$result = $this->crm_db->insertData(self::databaseInsertTable1, $record);
+			$result = $this->crm_db->insertData(self::T_TABLE2, $record[0]);
 			if($result){
-				$this->logger->info("Inserting row [$condition: $media_code] to ". self::databaseInsertTable1);
+				$this->logger->info("Inserting row [$condition: $media_code] to ". self::T_TABLE2);
 				// delete Data for the item: 「媒体コード」=「t_media_match_wait.media_code」
-				$result = $this->db->deleteData(self::databaseTable, $condition." = ?", array($media_code));
+				$result = $this->db->deleteData(self::T_TABLE1, $condition." = ?", array($media_code));
 				if($result){
 					$this->logger->info("Data Successfully Moved ".$condition." = ".$media_code);
 				}else{
-					$this->logger->error("Failed to deleteData".self::databaseTable.$condition." = ".$media_code);
+					$this->logger->error("Failed to deleteData".self::T_TABLE1.$condition." = ".$media_code);
 					throw new Exception("Process9 Failed to deleteData".self::databaseTaWble." ".$condition." = ".$media_code);
 				}
 			}else{
-				$this->logger->error("Failed to insertData".self::databaseInsertTable1." ".$condition." = ".$media_code);
-				throw new Exception("Process9 Failed to insertData".self::databaseInsertTable1." ".$condition." = ".$media_code);
+				$this->logger->error("Failed to insertData".self::T_TABLE2." ".$condition." = ".$media_code);
+				throw new Exception("Process9 Failed to insertData".self::T_TABLE2." ".$condition." = ".$media_code);
 			}
 		} else {
-			$this->logger->error("Database Result for ".$condition." = ".$media_code ." is ".self::databaseInsertTable1);
-			throw new Exception("Process9 Database Result for ".$condition." = ".$media_code ." is ".self::databaseInsertTable1);
+			$this->logger->error("Database Result for ".$condition." = ".$media_code ." is ".self::T_TABLE2);
+			throw new Exception("Process9 Database Result for ".$condition." = ".$media_code ." is ".self::T_TABLE2);
 		}
+		$compe_media_code = $finalArray[0]["compe_media_code"];
+		$corporation_code = $finalArray[0]["corporation_code"];
+		$last_start_date = $finalArray[0]["data_get_date"];
+		if (isset($this->latest_post_media_array[$compe_media_code][$corporation_code])){
+			$check_last_start_date = $this->latest_post_media_array[$compe_media_code][$corporation_code];
+			if($last_start_date != null && $check_last_start_date != null && strtotime($last_start_date) < strtotime($check_last_start_date)) {
+				$last_start_date = $check_last_start_date;
+			}
+		}
+		$this->latest_post_media_array[$corporation_code][$compe_media_code] = $last_start_date;
 		return true;
+	}
+
+	/**
+	 * エラーファイルを移動
+	 * @param ファイルパス $file_path
+	*/
+	function moveErrorTabaitaiCsv($file_path){
+		// ディレクトリ名
+		$errorDirname = dirname($file_path).'/error';
+		createDir($errorDirname);
+		$res = shell_exec('mv -f '.escapeshellarg($file_path).' '.escapeshellarg($errorDirname));
+		$this->logger->debug('moved '.$file_path.' to '.$errorDirname);
+	}
+
+	/**
+	 * Returns 他媒体マスター
+	 * @param unknown_type $val
+	 */
+	function getMMediaMassList($compe_media_code){
+		$result = array();
+		if (array_key_exists($compe_media_code, $this->media_mass_array)){
+			$result = array($this->media_mass_array[$compe_media_code]);
+		}
+		return $result;
+	}
+
+	function getMasterDataList(){
+		try{
+			// 他媒体マスター
+			$array = $this->rds_db->getData("compe_media_code,compe_media_name, media_name", self::M_TABLE1, null, array());
+			foreach ($array as $row) {
+				$this->media_mass_array[$row['compe_media_code']] = array(
+					"compe_media_name"=>$row["compe_media_name"],
+					"media_name"=>$row["media_name"]
+				);
+			}
+		}catch(Exception $e){
+			throw $e;
+		}
+	}
+	
+	/**
+	* 媒体最新出稿情報へlast_start_dateが最大のもの作成する
+	*/
+	function latestPostMediaInsertData(){
+		global $MAX_COMMIT_SIZE;
+		$key1 = "compe_media_code";
+		$key2 = "corporation_code";
+		$key3 = "last_start_date";
+		$condition = $key1."=? and ".$key2."=?";
+		$counter = 0;
+		try{
+			foreach ($this->latest_post_media_array as $row1 => &$data1){
+				$corporation_code = $row1;
+				foreach ($data1 as $row2 => &$data2){
+					$compe_media_code = $row2;
+					$last_start_date    = $data2;
+					$insertFields = array(
+						$key1 => $compe_media_code,
+						$key2 => $corporation_code,
+						$key3 => $last_start_date
+					);
+					//$this->logger->debug(var_export($insertFields , true));
+					
+					if(($counter % $MAX_COMMIT_SIZE) == 0){
+						$this->crm_db->beginTransaction();
+					}
+					$dataCount = $this->crm_db->getDataCount(self::T_TABLE3, $condition, array($compe_media_code, $corporation_code));
+					if($dataCount > 0){
+						$record = $this->crm_db->getData($key3,self::T_TABLE3,$condition, array($compe_media_code, $corporation_code));
+						if(!$record){
+							$this->logger->error($condition2." = ".$compe_media_code. " No match Found in ".self::M_TABLE1);
+							throw new Exception("Process9 ".$key1." = ".$compe_media_code.",".$key2." = ".$corporation_code." No .match Found in ".self::T_TABLE3);
+						}
+						$check_last_start_date = $record[0][$key3];
+						if($last_start_date != null && $check_last_start_date != null && strtotime($last_start_date) > strtotime($check_last_start_date)) {
+							// 削除・作成
+							$result1 = $this->crm_db->deleteData(self::T_TABLE3, $condition, array($compe_media_code, $corporation_code));
+							if($result1){
+								$this->logger->info("Data Successfully Moved ".$key1." = ".$compe_media_code.",".$key2." = ".$corporation_code);
+							}else{
+								throw new Exception("Process9 Failed to deleteData ".self::T_TABLE3." ".$key1." = ".$compe_media_code.",".$key2." = ".$corporation_code);
+							}
+							$result2 = $this->crm_db->insertData(self::T_TABLE3, $insertFields);
+							if(!$result2){
+								$this->logger->error("Failed to insertData".self::T_TABLE3." ".$key1." = ".$compe_media_code.",".$key2." = ".$corporation_code);
+								throw new Exception("Process9 Failed to insertData".self::T_TABLE3." ".$key1." = ".$compe_media_code.",".$key2." = ".$corporation_code);
+							}
+						} else {
+							$this->logger->debug("最終更新日付($check_last_start_date)より前のため更新されません。[".$key1." = ".$compe_media_code.",".$key2." = ".$corporation_code.",".$key3." = ".$last_start_date."]");
+						}
+					} else{
+						// 新規
+						$result1 = $this->crm_db->insertData(self::T_TABLE3, $insertFields);
+						if(!$result1){
+							$this->logger->error("Failed to insertData".self::T_TABLE3." ".$key1." = ".$compe_media_code.",".$key2." = ".$corporation_code);
+							throw new Exception("Process9 Failed to insertData".self::T_TABLE3." ".$key1." = ".$compe_media_code.",".$key2." = ".$corporation_code);
+						}
+					}
+					
+					$counter++;
+					if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row2 + 1) == sizeof($data1)){
+						$this->crm_db->commit();
+					}
+				}
+			}
+		}catch(Exception $e){
+			throw $e;
+		}
+		
+		return $counter;
 	}
 }
 ?>

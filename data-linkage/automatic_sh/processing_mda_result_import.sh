@@ -21,7 +21,6 @@ source ./utils.sh
 # config
 
 # 読込ファイルパターン名
-#INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_MDA_RES})
 INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_MDA_RES} ${INPUT_FILE_NAME_PATTERN_FORCE_RES})
 
 # 起動有無
@@ -97,7 +96,6 @@ function main {
   
   if [ ${is_processing} = ${TRUE} ] ; then
     make_dir ${MOVE_TODAY_DIR}
-    
     # 当日取込結果
     DIR1=`date +'%Y%m%d'`${BACKUP_FILE_NAME_PATTERN}
     # 前日取込結果
@@ -110,13 +108,24 @@ function main {
     for input_csv_fullpath in ${input_csv_fullpath_array[@]}; do
       tabaitai_csv_file ${input_csv_fullpath}
     done
-    if [ ${IS_LBC_BACH_START} = ${TRUE} ] ; then
-      # 1つでもファイルが存在する場合
-      lbc_maching_batch_start
-    else
-      # 存在しない場合
-      info_echo "no new csv files. exit."
-    fi
+  fi
+  
+  if [ -e ${MOVE_TODAY_DIR} -a ${IS_LBC_BACH_START} = ${FALSE} ]; then
+    for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+      num_csv=`find ${MOVE_TODAY_DIR} -maxdepth 1 -name ${INPUT_FILE_NAME_PATTERN_TABAITAI}  -type f | wc -l | sed -e 's/ //g'`
+      if [ ${num_csv} -gt 0 ] ; then
+          # 取込ファイルが存在する
+          IS_LBC_BACH_START=${TRUE}
+      fi
+    done
+  fi
+  
+  if [ ${IS_LBC_BACH_START} = ${TRUE} ] ; then
+    # 1つでもファイルが存在する場合
+    lbc_maching_batch_start
+  else
+    # 存在しない場合
+    info_echo "no new csv files. exit."
   fi
   remove_dir ${MOVE_TODAY_DIR}
   end_time
