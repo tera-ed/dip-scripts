@@ -12,6 +12,7 @@ class Process14 {
 
 	private $db, $rds_db, $logger, $mail, $mediaNameMap;
 
+	//const T_TABLE = "t_media_match_wait_evacuation";
 	const T_TABLE = 't_media_match_wait';
 	const M_TABLE = 'm_media_mass';
 
@@ -206,7 +207,7 @@ class Process14 {
 				"addr_prefe" => "都道府県",
 				"address1" => "住所1",
 				"address2" => "住所2",
-				"address3" => "住所3",
+				"null as address3" => "住所3",
 				"tel" => "TEL",
 				"section" => "担当部署",
 				"corporation_emp_name" => "担当者名",

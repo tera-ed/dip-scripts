@@ -25,17 +25,20 @@ class Process22 {
 		try {
 			$noFiles = true;
 			$dir = getImportPath();
-			$dh = opendir($dir);
 			if(file_exists($dir)){
-				//loop all the files on the import directory
-				while (false !== ($filename = readdir($dh))){
-					if($filename != "." && $filename != ".."){
-						$noFiles = false;
-						$fileType = $this->getFileType($filename);
-						if(self::FILE_CSV_TXT === $fileType){
-							$this->convFileEncoding($filename);
+				// ディレクトリの内容を読み込みます。
+				if ($dh = opendir($dir)) {
+					//loop all the files on the export directory
+					while (false !== ($filename = readdir($dh))) {
+						if($filename != "." && $filename != ".."){
+							$noFiles = false;
+							$fileType = $this->getFileType($filename);
+							if(self::FILE_CSV_TXT === $fileType){
+								$this->convFileEncoding($filename);
+							}
 						}
 					}
+					closedir($dh);
 				}
 			}
 			//If there are no files: write it down on the error file

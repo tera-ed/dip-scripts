@@ -195,7 +195,7 @@ class RecolinDatabase {
 	 */
 	function insertData($table, $params){
 		try {
-			$this->logger->info("Register data to $table table");
+			$this->logger->info("Register data to $table table with RECOLIN DB");
 			$insertData = $this->getInsertFields($params, $table);
 			$columns = implode(',', array_keys($insertData));
 			$values = implode(',', array_fill(0, count($insertData), '?'));
@@ -247,7 +247,7 @@ class RecolinDatabase {
 	 */
 	function updateData($table, $updateFields, $condition = null, $params = array()){
 		try{
-			$this->logger->info("Update data to $table table");
+			$this->logger->info("Update data to $table table with RECOLIN DB");
 			$fields = $this->getUpdateFields($updateFields, $table);
 			
 			$sql = "UPDATE $table SET $fields";

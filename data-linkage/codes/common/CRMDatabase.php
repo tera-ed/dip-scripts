@@ -3,6 +3,9 @@ class CRMDatabase{
 
 	private $dbconn, $logger;
 
+	const M_CORP = "m_corporation";
+	const B_CORP = "m_corporation_bak";
+
 	function __construct($logger){
 		global $CRM_DB;
 		$this->logger = $logger;
@@ -195,7 +198,7 @@ class CRMDatabase{
 	 */
 	function insertData($table, $params){
 		try {
-			$this->logger->info("Register data to $table table");
+			$this->logger->info("Register data to $table table with CRM DB");
 			$insertData = $this->getInsertFields($params, $table);
 			$columns = implode(',', array_keys($insertData));
 			$values = implode(',', array_fill(0, count($insertData), '?'));
@@ -247,7 +250,7 @@ class CRMDatabase{
 	 */
 	function updateData($table, $updateFields, $condition = null, $params = array()){
 		try{
-			$this->logger->info("Update data to $table table");
+			$this->logger->info("Update data to $table table with CRM DB");
 			$fields = $this->getUpdateFields($updateFields, $table);
 			
 			$sql = "UPDATE $table SET $fields";
@@ -435,6 +438,86 @@ class CRMDatabase{
 			throw $e;
 		}
 		return $result;
+	}
+
+	function setMCorporationByCode($corporation_code, $bach_db=null){
+		$condition = "corporation_code";
+		$dataCount = $this->getDataCount(self::M_CORP, $condition." = ?", array($corporation_code));
+		if($dataCount == 0 ){
+			// 存在しない場合、m_corporation_bakにから取得
+			$mRecord = $this->getData('*',self::B_CORP, $condition." = ?", array($corporation_code));
+			if(!empty($mRecord)){
+				//prepare the update fields
+				$tableList = emptyToNull($mRecord);
+				
+				$address3="";
+				if (isset($tableList[0]['address3'])){
+					$address3 = $tableList[0]['address3'];
+				}
+				if (isset($tableList[0]['address4'])){
+					$address3 = $address3.$tableList[0]['address4'];
+				}
+				
+				if (isset($tableList[0]['address5'])){
+					$address3 = $address3.$tableList[0]['address5'];
+				}
+				
+				if (isset($tableList[0]['address6'])){
+					$address3 = $address3.$tableList[0]['address6'];
+				}
+				$tableList[0]['address3'] = $address3;
+				
+				$insertDataKeys = getDBField($this, self::M_CORP);
+				
+				$newTableList = array();
+				foreach($insertDataKeys as $key){
+					$newTableList[$key] = "";
+					if (isset($tableList[0][$key])){
+						$newTableList[$key] = $tableList[0][$key];
+					}
+				}
+				$result1 = $this->insertData(self::M_CORP, $newTableList);
+				if(!$result1){
+					$this->logger->error("Failed to insert [$condition : $corporation_code] to ". self::M_CORP." with CRM DB");
+					throw new Exception("Failed to insert [$condition : $corporation_code] to ". self::M_CORP." with CRM DB");
+				} else {
+					$this->logger->info("Inserting row [$condition: $corporation_code] to ". self::M_CORP." with CRM DB");
+				}
+			}else{
+				// エラー
+				$this->logger->error($condition." = ".$corporation_code." No match Found in ".self::M_CORP." with CRM DB");
+				throw new Exception($condition." = ".$corporation_code." No match Found in ".self::M_CORP." with CRM DB");
+			}
+		}
+		
+		if($bach_db){
+			$dataCount = $bach_db->getDataCount(self::M_CORP, $condition." = ?", array($corporation_code));
+			if($dataCount == 0 ){ // Data not found, insert
+				$tableList = $this->getData('*',self::M_CORP, $condition." = ?", array($corporation_code));
+				$newTableList = $tableList[0];
+				$result2 = $bach_db->insertData(self::M_CORP, $newTableList);
+				if($result2){
+					$this->logger->info("Inserting row [$condition: $corporation_code] to ". self::M_CORP." with BATCH DB");
+				}
+			}
+		}
+	}
+	
+	function setMCorporationByOfficeId($office_id, $bach_db=null){
+		$condition1 = "office_id";
+		$condition2 = "corporation_code";
+		$mList = $this->getData('*',self::M_CORP, $condition1." = ?", array($office_id));
+		if(!isset($mList[0])){
+			// 存在しない場合、m_corporation_bakにから取得
+			$bList = $this->getData('*',self::B_CORP, $condition1." = ?", array($office_id));
+			foreach ($bList as $row => &$data){
+				$this->setMCorporationByCode($data[$condition2], $bach_db);
+			}
+		
+		}
+		foreach ($mList as $row => &$data){
+			$this->setMCorporationByCode($data[$condition2], $bach_db);
+		}
 	}
 }
 ?>

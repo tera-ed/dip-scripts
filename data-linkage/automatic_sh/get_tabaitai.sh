@@ -27,7 +27,7 @@ INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
 # 起動有無パターン名
-PREFIX_OF_FILENAME_ON_PROCESSING=${PROCESSING5}
+PREFIX_OF_FILENAME_ON_PROCESSING=${PROCESSING8}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
 #ログファイル名
@@ -39,11 +39,16 @@ IS_TABAITAI_START=${FALSE}
 #P11ディレクトリ
 MOVE_TODAY_DIR=${IMPORT_AFTER_DIR_PATH}/`date +'%Y%m%d'`"_11"
 
+MAX_TORIKOMI_COUNT=1
 COUNT=0
 
 # 監視ディレクトリ
 input_ok_path=${PYTHON_SOURCE_OK_PATH}
 input_done_path=${PYTHON_SOURCE_DONE_PATH}
+
+# 起動ソース
+SOURCE_PATHE=${FILE_TABAITAI_UPLOAD_PATH}
+SOURCE_NAME=${FILE_TABAITAI_UPLOAD_SOURCE}
 
 # ----------------------------------
 
@@ -54,45 +59,102 @@ function main {
   is_processing=${FALSE}
   if [ "$(ls ./${PROCESSING1}* 2>/dev/null)" = '' ] ; then
     is_processing=${TRUE}
+    
+    # 対応する他媒体ファイル検索
+    DIR1=`date +'%Y%m%d'`'_11'
+    output_dir_path=${IMPORT_AFTER_DIR_PATH}/${DIR1}
+    if [ -e ${output_dir_path} ]; then
+      for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+        num_of_csv_files=`find ${output_dir_path} -type f -name "${input_file_name_pattern}" -type f | wc -l`
+        COUNT=$(( COUNT + ${num_of_csv_files} ))
+        
+        if [ ${COUNT} -ge ${MAX_TORIKOMI_COUNT} ] ; then
+          info_echo "already creating_mda_request csv files [path : "${output_dir_path}"]. exit."
+          is_processing=${FALSE}
+          break
+        fi
+      done
+    fi
   else
     info_echo "during startup creating_mda_request.sh. exit."
   fi
-
+  
   if [ ${is_processing} = ${TRUE} ] ; then
-    num_of_csv_files=`find ${input_done_path} -maxdepth 1 -type d 2>/dev/null | wc -l | sed -e 's/ //g'`
-    if [ ${num_of_csv_files} = 0 ] ; then
-      `sudo -i mkdir -p ${input_done_path}`
-      `sudo -i chown dip-sysinfo:dip-sysinfo ${input_done_path}`
-    fi
-    
     make_dir ${MOVE_TODAY_DIR}
+    
     # 前日P11未取込
     DIR1=`date -d "1 day ago" +'%Y%m%d'`"_11"
     input_csv_fullpath_array=(${IMPORT_AFTER_DIR_PATH}/${DIR1})
 
     for pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
-
+      # 過去未取込CSV
+      for input_csv_fullpath in ${input_csv_fullpath_array[@]}; do
+        input_csvfile_fullpath_array=`find ${input_csv_fullpath} -maxdepth 1 -name ${pattern} -type f 2>/dev/null | sort`
+        for input_csv_path in $input_csvfile_fullpath_array; do
+          #debug_echo ${input_csv_path}
+          
+          # 移動
+          move_input_csv_file ${input_csv_path} ${MOVE_TODAY_DIR}/
+          COUNT=$(( COUNT + 1 ))
+        done
+        remove_dir ${input_csv_fullpath}
+      done
+    done
+    
+    if [ ${COUNT} -gt 0 ] ; then
+      # 過去CSVが存在する
+      is_processing=${FALSE}
+    fi
+  fi
+  
+  if [ ${is_processing} = ${TRUE} ] ; then
+    for pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+      if [ ${is_processing} = ${FALSE} ] ; then
+        break
+      fi
       
       # 取込ファイルが存在する
-      input_csvfile_fullpath_array=`sudo -i find ${input_ok_path} -maxdepth 1 -name ${pattern} -type f 2>/dev/null | sort`
-      for input_csv_path in $input_csvfile_fullpath_array; do
-        debug_echo ${input_csv_path}
-        
-        # ファイル名
-        filename=`basename ${input_csv_path}`
-        # 圧縮ファイル名
-        gz_filename=${filename}".gz"
-        
-        # 圧縮
-        `sudo -i gzip -f ${input_csv_path}`
-        # コピー
-        `sudo -i cp -f ${input_ok_path}/${gz_filename} ${MOVE_TODAY_DIR}/`
-        # バックアップへ移動
-        move_input_csv_file_sudo ${input_ok_path}/${gz_filename} ${input_done_path}
-        # 解凍
-        `gunzip -f ${MOVE_TODAY_DIR}/${gz_filename}`
-
-        COUNT=$(( COUNT + 1 ))
+      cmd1="find "${input_ok_path}" -maxdepth 1 -name '"${pattern}"' -type f 2>/dev/null | wc -l | sed -e 's/ //g'"
+      num_of_csv_files=`sudo -u ${PYTHON_USER} sh -c "${cmd1}"`
+      if [ ${num_of_csv_files} -gt 0 ] ; then
+        # 取込ファイルが存在する
+        cmd2="find "${SOURCE_PATHE}/${SOURCE_NAME}" 2>/dev/null | wc -l"
+        num_of_files=`sudo -u ${PYTHON_USER} sh -c "${cmd2}"`
+        if [ ${num_of_files} -gt 0 ] ; then
+          bach_data=$(sudo -u ${PYTHON_USER} sh -c "cd ${SOURCE_PATHE} && bash ${SOURCE_NAME}")
+          if [ -z ${bach_data} ] ; then
+            info_echo "success "${SOURCE_NAME}
+          else
+            error_echo "failed "${SOURCE_NAME}
+          fi
+        else
+          error_echo " not source : ${SOURCE_PATHE}/${SOURCE_NAME}"
+        fi
+      fi
+      
+      # 圧縮ファイル
+      cmd1="find "${input_done_path}" -maxdepth 1 -name *"${pattern}".zip -type f 2>/dev/null | sort"
+      input_zipfile_fullpath_array=`sudo -u ${PYTHON_USER} sh -c "${cmd1}"`
+      for input_zip_path in $input_zipfile_fullpath_array; do
+         #debug_echo ${input_zip_path}
+         # ファイル名
+         filename=`basename ${input_zip_path}`
+         # 移動
+         move_input_csv_file_sudo ${input_zip_path} ${MOVE_TODAY_DIR}/
+         
+         # 解凍
+         zip_info=`unzip -o ${MOVE_TODAY_DIR}/${filename} -d ${MOVE_TODAY_DIR}/`
+         debug_echo ${zip_info}
+         
+         # ZIP削除
+         remove_file ${MOVE_TODAY_DIR}/${filename}
+         COUNT=$(( COUNT + 1 ))
+         
+         if [ ${COUNT} -ge ${MAX_TORIKOMI_COUNT} ] ; then
+           info_echo "already creating_mda_request csv files. exit."
+           is_processing=${FALSE}
+           break
+         fi
       done
     done
   fi

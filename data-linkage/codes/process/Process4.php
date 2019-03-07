@@ -225,13 +225,14 @@ class Process4{
 					} else {
 						$this->logger->error("Record not found [$OLD_LBC_officeIdHeader: $tableData[$OLD_LBC_officeIdHeader]] in ".self::TABLE_1.".");
 					}
-
+					
 					// Search item 「OLD_LBC」 from 「m_corporation.office_id」
 					$this->logger->info("Search item 「OLD_LBC」 from 「".self::TABLE_2.".".self::KEY."」");
 					$result2 = true;
-					$recordCount2 = $this->rds_db->getDataCount(self::TABLE_2, self::KEY."=?", $key);
+					$this->crm_db->setMCorporationByOfficeId($tableData[$OLD_LBC_officeIdHeader], $db);
+					$recordCount2 = $this->crm_db->getDataCount(self::TABLE_2, self::KEY."=?", $key);
 					// ロック顧客かどうか office_id で確認 20161004lock_add
-					$lockCount = $this->db->getDataCount(self::LOCK_TABLE_1." lo inner join ".self::TABLE_2." mc on lo.corporation_code = mc.corporation_code ",
+					$lockCount = $this->crm_db->getDataCount(self::LOCK_TABLE_1." lo inner join ".self::TABLE_2." mc on lo.corporation_code = mc.corporation_code ",
 					 "mc.".self::KEY."=? and lo.lock_status = 1 and lo.delete_flag = false", $key);
 					// 顧客が存在して、かつまだロックされていない顧客は更新 20161004lock_add
 					if($recordCount2 > 0 && $lockCount <= 0){
@@ -453,26 +454,10 @@ class Process4{
 	 * @return array - merged array
 	 */
 	private function insertDefaultValue($array){
-		$address3 = $array['address3'];
-		if (array_key_exists('address4', $array)) {
-			$address3 = $address3.$data['address4'];
-			unset($array['address4']);
-		}
-		if (array_key_exists('address5', $array)) {
-			$address3 = $address3.$array['address5'];
-			unset($array['address5']);
-		}
-		if (array_key_exists('address6', $array)) {
-			$address3 = $address3.$array['address6'];
-			unset($array['address6']);
-		}
-		$array['address3'] = $address3;
-		
-		
 		$addedFields = array(
-			"addressall" => $array["address1"].$array["address2"].$array["address3"],
+			"addressall" => $array["address1"].$array["address2"].$array["address3"].$array["address4"].$array["address5"].$array["address6"],
 			"business_type" => $array["industry_code1"]
-		);
+			);
 		return array_merge($array, $addedFields);
 	}
 

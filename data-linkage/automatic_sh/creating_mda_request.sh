@@ -21,7 +21,6 @@ source ./utils.sh
 # config
 
 # 読込ファイルパターン名
-#INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI})
 INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_PATTERN_FORCE})
 
 # 起動有無
@@ -47,11 +46,15 @@ function main {
   start_time
 
   is_processing=${FALSE}
-  if [ "$(ls ./${PROCESSING5}* 2>/dev/null)" = '' ] ; then
-    if [ "$(ls ./${PROCESSING2}* 2>/dev/null)" = '' ] ; then
-      is_processing=${TRUE}
+  if [ "$(ls ./${PROCESSING8}* 2>/dev/null)" = '' ] ; then
+    if [ "$(ls ./${PROCESSING5}* 2>/dev/null)" = '' ] ; then
+      if [ "$(ls ./${PROCESSING2}* 2>/dev/null)" = '' ] ; then
+        is_processing=${TRUE}
+      else
+        info_echo "during startup processing_mda_result_import.sh. exit."
+      fi
     else
-      info_echo "during startup processing_mda_result_import.sh. exit."
+      info_echo "during startup move_tabaitai.sh. exit."
     fi
   else
     info_echo "during startup get_tabaitai.sh. exit."

@@ -10,7 +10,7 @@
  */
 
 class Process24 {
-	private $logger, $db, $rds_db, $mail, $SKIP_FLAG, $m_table_lbc;
+	private $logger, $db, $crm_db, $rds_db, $mail, $SKIP_FLAG, $m_table_lbc;
 	private $isError = false;
 
 	const WK_T_TABLE = "wk_t_nayose_crm_result";
@@ -45,6 +45,7 @@ class Process24 {
 		try {
 			// Initialize Database
 			$this->db = new Database($this->logger);
+			$this->crm_db = new CRMDatabase($this->logger);
 			$this->rds_db = new RDSDatabase($this->logger);
 			
 			$this->m_table_lbc = $this->db->setSchema("m_lbc");
@@ -239,6 +240,7 @@ class Process24 {
 			foreach($list as $row => &$data){
 				if(($counter % $MAX_COMMIT_SIZE) == 0){
 					$this->db->beginTransaction();
+					$this->crm_db->beginTransaction();
 				}
 				$tableList = array(
 					"corporation_code"=>$data["corporation_code"],
@@ -249,8 +251,9 @@ class Process24 {
 					"name_approach_office_id"=>$data["office_id"],
 					"current_data_flag"=>1,
 					"delete_flag"=>null);
-				$nonExistRes = $this->db->insertData(self::WK_T_TABLE_LINK, $tableList);
-				if(!$nonExistRes){
+				$nonExistRes1 = $this->db->insertData(self::WK_T_TABLE_LINK, $tableList);
+				$nonExistRes2 = $this->crm_db->insertData(self::WK_T_TABLE_LINK, $tableList);
+				if(!$nonExistRes1 && $nonExistRes2){
 					$this->logger->error("Failed to Register [corporation_code : $tableList[corporation_code]] to". self::WK_T_TABLE_LINK);
 					if($this->SKIP_FLAG == 0){
 						$this->isError = true;
@@ -263,6 +266,7 @@ class Process24 {
 				// 最大コミット件数に到達したか、全件処理した場合にコミット
 				if(($counter % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($list)){
 					$this->db->commit();
+					$this->crm_db->commit();
 				}
 			}
 		} catch(Exception $e){
@@ -439,8 +443,9 @@ class Process24 {
 			if(count($query) > 0){
 				foreach($query as $data){
 					$this->db->beginTransaction();
+					$this->crm_db->beginTransaction();
+					
 					$params = array($data["corporation_code"], $data["office_id"]);
-
 					// 名寄せ先顧客コードをwk_t_nayose_crm_resultから取得
 					$name_approach_code = $this->db->getData("corporation_code",self::WK_T_TABLE,"nayose_status IS NULL AND office_id = ?", array($data["office_id"]));
 					// wk_t_nayose_crm_resultの中から名寄せ先顧客コードが見つからなかった場合はm_corporation上のデータを確認
@@ -457,8 +462,9 @@ class Process24 {
 						"name_approach_code"=> $name_approach_code[0]["corporation_code"],
 						"name_approach_office_id"=> $data["office_id"],
 						"delete_flag"=>$data["nayose_status"]);// 誤り理由
-						$result = $this->db->updateData(self::WK_T_TABLE_LINK,$update,"corporation_code = ? AND office_id = ?",$params);
-						if($result < 0){
+						$result1 = $this->db->updateData(self::WK_T_TABLE_LINK,$update,"corporation_code = ? AND office_id = ?",$params);
+						$result2 = $this->crm_db->updateData(self::WK_T_TABLE_LINK,$update,"corporation_code = ? AND office_id = ?",$params);
+						if($result1 < 0){
 							$this->isError = true;
 							$this->logger->error("N対1 Failed to Update. [Corporation_code : ".$data["corporation_code"]."][office_id : ".$data["office_id"]."]");
 							throw new Exception("Process24 N対1 Update Failed on database Table ".self::WK_T_TABLE_LINK." [Corporation_code : ".$data["corporation_code"]."][office_id : ".$data["office_id"]."]");
@@ -472,13 +478,12 @@ class Process24 {
 							"current_data_flag"=>0,
 							"name_approach_code"=> $name_approach_code[0]["corporation_code"],
 							"name_approach_office_id"=> $data["office_id"]);
-							$updateResult = $this->db->updateData(self::WK_T_TABLE_LINK,$update,"name_approach_code = ? AND name_approach_office_id = ?",$params);
-							if($updateResult < 0){
+							$updateResult1 = $this->db->updateData(self::WK_T_TABLE_LINK,$update,"name_approach_code = ? AND name_approach_office_id = ?",$params);
+							$updateResult2 = $this->crm_db->updateData(self::WK_T_TABLE_LINK,$update,"name_approach_code = ? AND name_approach_office_id = ?",$params);
+							if($updateResult1 < 0){
 								$this->isError = true;
 								$this->logger->error("N対1 Failed to name_approach Update. [name_approach_code : ".$data["corporation_code"]."][name_approach_office_id : ".$data["office_id"]."]");
 								throw new Exception("Process24 N対1 Update Failed on database Table ".self::WK_T_TABLE_LINK." [name_approach_code : ".$data["corporation_code"]."][name_approach_office_id : ".$data["office_id"]."]");
-							} else if ($updateResult == 0) {
-								// 名寄せの階層構造除去のための更新データなし
 							}else{
 								// 名寄せの階層構造除去成功
 								$this->logger->info("N対1 Data Updated to wk_t_lbc_crm_link name_approach. [name_approach_code : ".$data["corporation_code"]."][name_approach_office_id : ".$data["office_id"]
@@ -492,6 +497,7 @@ class Process24 {
 						throw new Exception("Process24 Update Failed on database Table ".self::WK_T_TABLE_LINK);
 					}
 					$this->db->commit();
+					$this->crm_db->commit();
 				}
 			}else if(count($query) == 0){ // 空CSVが作られるように処理データ0件の場合はresultを0で返す
 				$result = 0;
@@ -586,10 +592,11 @@ class Process24 {
 			if(count($query) > 0){
 				foreach($query as $data){
 					$this->db->beginTransaction();
+					$this->crm_db->beginTransaction();
+					
 					$params = array($data["corporation_code"], $data["office_id"]);
 					// 他に名寄せされたらcurrent_data_flag=0にする
 					$current_data_flag = 0;
-
 					// 名寄せ先LBCコード取得
 					$name_approach_office_id = $this->db->getData("office_id",self::WK_T_TABLE,"nayose_status IS NULL AND corporation_code = ?", array($data["corporation_code"]));
 					// Gマッチ判定は名寄せ先が見つからない場合があるのでその場合は自身のコードで埋める
@@ -606,8 +613,9 @@ class Process24 {
 						"name_approach_office_id"=> $name_approach_office_id[0]["office_id"],// 名寄せ先のLBCコード
 						"delete_flag"=>$data["nayose_status"]);// 誤り理由 Gマッチ判定のレコードはwk_t_lbc_crm_linkのdelete_flagを2で登録しておく （Process31の削除用）
 						// 登録
-						$result = $this->db->updateData(self::WK_T_TABLE_LINK,$update,"corporation_code = ? AND office_id = ?",$params);
-						if($result < 0){
+						$result1 = $this->db->updateData(self::WK_T_TABLE_LINK,$update,"corporation_code = ? AND office_id = ?",$params);
+						$result2 = $this->crm_db->updateData(self::WK_T_TABLE_LINK,$update,"corporation_code = ? AND office_id = ?",$params);
+						if($result1 < 0){
 							$this->isError = true;
 							$this->logger->error("Failed to 1対N Data Update.  [Corporation_code : ".$data["corporation_code"]."][office_id : ".$data["office_id"]."]");
 							throw new Exception("Process24 1対N Data Update Failed on database Table ".self::WK_T_TABLE_LINK."[Corporation_code : ".$data["corporation_code"]."][office_id : ".$data["office_id"]."]");
@@ -620,13 +628,12 @@ class Process24 {
 							"current_data_flag"=>0,// 名寄せされたので0にする
 							"name_approach_code"=> $data["corporation_code"],// LBCの名寄せなのでcorporation_codeは同じものを入れる
 							"name_approach_office_id"=> $name_approach_office_id[0]["office_id"]);// 名寄せ先のLBCコード
-							$updateResult = $this->db->updateData(self::WK_T_TABLE_LINK,$update,"name_approach_code = ? AND name_approach_office_id = ?",$params);
-							if($updateResult < 0){
+							$updateResult1 = $this->db->updateData(self::WK_T_TABLE_LINK,$update,"name_approach_code = ? AND name_approach_office_id = ?",$params);
+							$updateResult2 = $this->crm_db->updateData(self::WK_T_TABLE_LINK,$update,"name_approach_code = ? AND name_approach_office_id = ?",$params);
+							if($updateResult1 < 0){
 								$this->isError = true;
 								$this->logger->error("Failed to 1対N Data name_approach Update. [name_approach_code : ".$data["corporation_code"]."][name_approach_office_id : ".$data["office_id"]."]");
 								throw new Exception("Process24  1対N Data Update Failed on database Table ".self::WK_T_TABLE_LINK."[name_approach_code : ".$data["corporation_code"]."][name_approach_office_id : ".$data["office_id"]."]");
-							} else if ($updateResult == 0) {
-								// 名寄せの階層構造除去のための更新データなし
 							}else{
 								// 名寄せの階層構造除去成功
 								$this->logger->info("1対N Data Updated to wk_t_lbc_crm_link name_approach. [name_approach_code : ".$data["corporation_code"]."][name_approach_office_id : ".$data["office_id"]
@@ -641,6 +648,7 @@ class Process24 {
 						throw new Exception("Process24 Update Failed on database Table ".self::WK_T_TABLE_LINK);
 					}
 					$this->db->commit();
+					$this->crm_db->commit();
 				}
 			}else if(count($query) == 0){ // 空CSVが作られるように処理データ0件の場合はresultを0で返す
 				$result = 0;

@@ -197,7 +197,9 @@ class Process7{
 				if($validRow === true){
 					// Using the item: 「顧客コード」 as key, search for 「m_corporation.corporation_code」
 					$key1 = array($tableData[$corpCodeHeader]);
-					$recordCount1 = $this->rds_db->getDataCount(self::TABLE_1, self::KEY_1."=?", $key1);
+					$this->crm_db->setMCorporationByCode($tableData[$corpCodeHeader], $db);
+					
+					$recordCount1 = $this->crm_db->getDataCount(self::TABLE_1, self::KEY_1."=?", $key1);
 					// ロック顧客かどうか corporation_code で確認 20161004lock_add
 					$lockCount = $this->rds_db->getDataCount(self::LOCK_TABLE_1, self::KEY_1."=? and lock_status = 1 and delete_flag = false", $key1);
 					// 顧客が存在して、かつまだロックされていない顧客はm_corporationのLBC情報を更新 20161004lock_add
@@ -402,28 +404,11 @@ class Process7{
 	 * @return array - merged array
 	 */
 	private function insertDefaultValue($array){
-		$address3 = $array['address3'];
-		if (array_key_exists('address4', $array)) {
-			$address3 = $address3.$array['address4'];
-			unset($array['address4']);
-		}
-		if (array_key_exists('address5', $array)) {
-			$address3 = $address3.$array['address5'];
-			unset($array['address5']);
-		}
-		if (array_key_exists('address6', $array)) {
-			$address3 = $address3.$array['address6'];
-			unset($array['address6']);
-		}
-		$array['address3'] = $address3;
-		
 		$addedFields = array(
-			"addressall" => $array["address1"].$array["address2"].$array["address3"], //addressall (company_addr 1-6) 60-65
+			"addressall" => $array["address1"].$array["address2"].$array["address3"].$array["address4"].$array["address5"].$array["address6"], //addressall (company_addr 1-6) 60-65
 			"business_type" => $array["industry_code1"] //business_type (industry_code1)
-		);
-		$data = array_merge($array, $addedFields);
-		
-		return $data;
+			);
+		return array_merge($array, $addedFields);
 	}
 	/**
 	 * Add missing fields to table from latitude,longitude delete data
@@ -434,7 +419,7 @@ class Process7{
 		$addedFields2 = array(
 			"latitude" => null, // 緯度
 			"longitude" => null // 経度
-		);
+			);
 		return array_merge($array, $addedFields2);
 	}
 

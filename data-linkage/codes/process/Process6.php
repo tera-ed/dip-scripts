@@ -11,7 +11,6 @@ class Process6 {
 
 	const TABLE_1 = 'm_lbc';
 	const TABLE_2 = 'm_corporation';
-	const TABLE_3 = 'm_corporation_bak';
 
 	const LOCK_TABLE_1 = 't_lock_lbc_link';
 
@@ -88,7 +87,7 @@ class Process6 {
 					$this->db->commit();
 					while ($offsetCount <=self::OFFSET_LIMIT) {
 						$offset = ($limit * $offsetCount);
-						$csvList = $this->db->getLimitOffsetData("*", self::WK_B_TABLE2, NULL, array(), $limit, $offset);
+						$csvList = $this->db->getLimitOffsetData("*", self::WK_B_TABLE2, null, array(), $limit, $offset);
 						if (count($csvList) === 0) {
 							// 配列の値がすべて空の時の処理
 							break;
@@ -194,8 +193,8 @@ class Process6 {
 	private function processData($data, $csvFile, $csvHeader) {
 		global $MAX_COMMIT_SIZE,$SYSTEM_USER;
 		$cntr = 0;
-		$pKey1	= self::KEY_1;
-		$pKey2	= self::KEY_2;
+		$pKey1	= self::KEY_1;// office_id
+		$pKey2	= self::KEY_2;// corporation_code
 		try {
 			$this->logger->info("process data");
 			foreach ($data as $row => &$col) {
@@ -226,6 +225,13 @@ class Process6 {
 					// Move the process to the next record
 					$this->logger->error("Error found in data [$pKey1 = $officeId]");
 				} else {
+					$recordCount1 = $this->recolin_db->getDataCount(self::TABLE_1, $pKey1."=?", array($officeId));
+					if($recordCount1 > 0){// if search result != 0, delete the search record
+						$currentDate = date("Y/m/d H:i:s");
+						$lblParam["update_date"] = $currentDate;
+						$lblParam["update_user_code"] = $SYSTEM_USER;
+					}
+				
 					// If all fields are valid and
 					$result1 = $this->recolin_db->insertUpdateData(self::TABLE_1, $lblParam, $pKey1);
 					if($result1) {
@@ -236,9 +242,8 @@ class Process6 {
 							$tableList = emptyToNull($crm_esultRecord);
 							$corporation_code = $tableList[0][$pKey2];
 							// 顧客テーブルに存在するか確認
-							$corporationCount1 = $this->rds_db->getDataCount(self::TABLE_2, $pKey2."=?", array($corporation_code));
-							$corporationCount2 = $this->rds_db->getDataCount(self::TABLE_3, $pKey2."=?", array($corporation_code));
-							$corporationCount = $corporationCount1 + $corporationCount2;
+							$this->crm_db->setMCorporationByCode($corporation_code, $db);
+							$corporationCount = $this->crm_db->getDataCount(self::TABLE_2, $pKey2."=?", array($corporation_code));
 							// ロック顧客かどうか corporation_code で確認 20161004lock_add
 							$lockCount = $this->rds_db->getDataCount(self::LOCK_TABLE_1, $pKey2."=? and lock_status = 1 and delete_flag = false", array($corporation_code));
 							// 顧客が存在して、かつまだロックされていない顧客はm_corporationのoffice_idを更新 20161004lock_add
@@ -265,13 +270,10 @@ class Process6 {
 								$this->isError = true;
 								$this->logger->error("Failed to register ROW[$row] : [$pKey2 = $corporation_code] to $tbl");
 								throw new Exception("Process6 Failed to register ROW[$row] : [$pKey2 = $corporation_code] to $tbl");
-
 							}
 						} else {
 							// 処理中のoffice_idがまだ存在しない場合は顧客テーブルへ登録
-							$corporationCount1 = $this->rds_db->getDataCount(self::TABLE_2, $pKey1."=?", array($officeId));
-							$corporationCount2 = $this->rds_db->getDataCount(self::TABLE_3, $pKey1."=?", array($officeId));
-							$count = $corporationCount1 + $corporationCount2;
+							$corporationCount = $this->crm_db->getDataCount(self::TABLE_2, $pKey1."=?", array($officeId));
 							if($count == 0) {
 								$dataParam = $this->setInsertParams($corParam);
 								$result2_1 = $this->crm_db->insertData(self::TABLE_2, $dataParam);
@@ -286,21 +288,15 @@ class Process6 {
 								// office_idを使った新規登録分のレコードは、まだ名寄せ情報テーブルに無いはずなので、新規登録
 								// pkey1 -> office_id,  table2 -> m_corporation
 								// office_idで顧客コードを検索して、その組み合わせをwk_t_lbc_crm_linkに新規登録
-								$newCorp = $this->rds_db->getData("corporation_code",self::TABLE_2, $pKey1."=?", array($officeId));
-								if ($newCorp) {
+								
+								$this->crm_db->setMCorporationByOfficeId($officeId, $db);
+								$dataCount = $this->crm_db->getDataCount(self::TABLE_2, $pKey1."=?", array($officeId));
+								if($dataCount > 0){
 									// 存在する
 									$tbl =  self::TABLE_2;
 									$this->logger->debug("get corporation_code $tbl. [$pKey1 = $officeId]");
 									$isNewCorp = true;
-								} else {
-									$newCorp = $this->rds_db->getData("corporation_code",self::TABLE_3, $pKey1."=?", array($officeId));
-									if ($newCorp) {
-										// 存在する
-										$tbl =  self::TABLE_3;
-										$this->logger->debug("get corporation_code $tbl. [$pKey1 = $officeId]");
-										$isNewCorp = true;
-									}
-								}
+								} 
 								
 								if ($isNewCorp) {
 									// 存在する
@@ -309,7 +305,7 @@ class Process6 {
 										"corporation_code"=>$newCorp[0]["corporation_code"],
 										"office_id"=>$officeId,
 										"match_result"=>"A",
-										"match_detail"=>NULL,
+										"match_detail"=>null,
 										"name_approach_code"=>$newCorp[0]["corporation_code"],
 										"name_approach_office_id"=>$officeId,
 										"current_data_flag"=>"1",
@@ -328,9 +324,10 @@ class Process6 {
 								} else {
 									// 存在しない
 									$tbl =  self::WK_B_TABLE3;
-									$this->isError = true;
-									$this->logger->error("Can not get corporation_code ROW[$row] : [$pKey1 = $officeId] to $tbl");
-									throw new Exception("Process6 Can not get corporation_code ROW[$row] : [$pKey1 = $officeId] to $tbl");
+									//$this->isError = true;
+									//$this->logger->error("Can not get corporation_code ROW[$row] : [$pKey1 = $officeId] to $tbl");
+									//throw new Exception("Process6 Can not get corporation_code ROW[$row] : [$pKey1 = $officeId] to $tbl");
+									$this->logger->info("顧客コードが存在しないため更新をスキップします。 ROW[$row] : [$pKey1 = $officeId] in $tbl");
 								}
 							}else{
 								$tbl =  self::TABLE_2;
@@ -342,6 +339,7 @@ class Process6 {
 						$this->isError = true;
 						$this->logger->error("Failed to register ROW[$row] : [$pKey1 = $officeId] to $tbl");
 						throw new Exception("Process6 Failed to register ROW[$row] : [$pKey1 = $officeId] to $tbl");
+
 					}
 
 					$this->logger->debug("Registered [$pKey1 = $officeId]");
@@ -362,23 +360,23 @@ class Process6 {
 	}
 
 	/* 
-	 * 数値系カラムに対する NULL -> 0 への変換  
+	 * 数値系カラムに対する null -> 0 への変換  
 	 */
 	private function setLbcParams($data) {
 		// 会社状況フラグ 0-15の数値  NULL：非倒産 の場合に 0:非倒産 に変換
-		if ($data["company_stat"] === NULL && $data["company_stat_name"] === "非倒産"){ 
+		if ($data["company_stat"] === null && $data["company_stat_name"] === "非倒産"){ 
 			$data["company_stat"] = 0;
 		}
 		// 事業所状況フラグ 0-9の数値  NULL：非閉鎖 の場合に 0:非閉鎖 に変換
-		if ($data["office_stat"] === NULL && $data["office_stat_name"] === "非閉鎖"){
+		if ($data["office_stat"] === null && $data["office_stat_name"] === "非閉鎖"){
 			$data["office_stat"] = 0;
 		}
 		// 電話番号コールチェックフラグ 0-9の数値  NULLの場合に 0（未チェック/番号なしの意味） に変換
-		if ($data["tel_cc_flag"] === NULL && $data["tel_cc_date"] === NULL){
+		if ($data["tel_cc_flag"] === null && $data["tel_cc_date"] === null){
 			$data["tel_cc_flag"] = 0;
 		}
 		// FAX番号コールチェックフラグ 0-9の数値  NULLの場合に 0（未チェック/番号なしの意味） に変換
-		if ($data["fax_cc_flag"] === NULL && $data["fax_cc_date"] === NULL){
+		if ($data["fax_cc_flag"] === null && $data["fax_cc_date"] === null){
 			$data["fax_cc_flag"] = 0;
 		}
 		return $data;
@@ -427,24 +425,7 @@ class Process6 {
 		$data['dispatch_licensing_toku'] = NULL;
 		$data['dispatch_licensing_sho'] = NULL;
 		$data['nego_record_date'] = NULL;
-		
-		$address3 = $data['address3'];
-		if (array_key_exists('address4', $data)) {
-			$address3 = $address3.$data['address4'];
-			unset($data['address4']);
-		}
-		if (array_key_exists('address5', $data)) {
-			$address3 = $address3.$data['address5'];
-			unset($data['address5']);
-		}
-		if (array_key_exists('address6', $data)) {
-			$address3 = $address3.$data['address6'];
-			unset($data['address6']);
-		}
-		$data['address3'] = $address3;
-		
-		$addressAll = $data['address1'].$data['address2'].$data['address3'];
-		$data['addressall'] = $addressAll;
+
 		return $data;
 	}
 
@@ -453,39 +434,26 @@ class Process6 {
 	 */
 	private function setParams($data = array(), $addFields = false) {
 		if($addFields) {
-			$address3 = $data['address3'];
-			if (array_key_exists('address4', $data)) {
-				$address3 = $address3.$data['address4'];
-				unset($data['address4']);
-			}
-			if (array_key_exists('address5', $data)) {
-				$address3 = $address3.$data['address5'];
-				unset($data['address5']);
-			}
-			if (array_key_exists('address6', $data)) {
-				$address3 = $address3.$data['address6'];
-				unset($data['address6']);
-			}
-			$data['address3'] = $address3;
-			
 			// additional fields
-			$addressAll = $data['address1'].$data['address2'].$data['address3'];
+			$addressAll = $data['address1'].$data['address2'];
+			$addressAll.= $data['address3'].$data['address4'];
+			$addressAll.= $data['address5'].$data['address6'];
 			$data['addressall'] = $addressAll;
 			$data['business_type'] = $data['industry_code1'];
 			// 会社状況フラグ 0-15の数値  NULL：非倒産 の場合に 0:非倒産 に変換
-			if ($data["company_stat"] === NULL && $data["company_stat_name"] === "非倒産"){ 
+			if ($data["company_stat"] === null && $data["company_stat_name"] === "非倒産"){ 
 				$data["company_stat"] = 0;
 			}
 			// 事業所状況フラグ 0-9の数値  NULL：非閉鎖 の場合に 0:非閉鎖 に変換
-			if ($data["office_stat"] === NULL && $data["office_stat_name"] === "非閉鎖"){
+			if ($data["office_stat"] === null && $data["office_stat_name"] === "非閉鎖"){
 				$data["office_stat"] = 0;
 			}
 			// 電話番号コールチェックフラグ 0-9の数値  NULLの場合に 0（未チェック/番号なしの意味） に変換
-			if ($data["tel_cc_flag"] === NULL && $data["tel_cc_date"] === NULL){
+			if ($data["tel_cc_flag"] === null && $data["tel_cc_date"] === null){
 				$data["tel_cc_flag"] = 0;
 			}
 			// FAX番号コールチェックフラグ 0-9の数値  NULLの場合に 0（未チェック/番号なしの意味） に変換
-			if ($data["fax_cc_flag"] === NULL && $data["fax_cc_date"] === NULL){
+			if ($data["fax_cc_flag"] === null && $data["fax_cc_date"] === null){
 				$data["fax_cc_flag"] = 0;
 			}
 			return $data;
@@ -651,9 +619,9 @@ class Process6 {
 					"address1"                   => "L:256,J",
 					"address2"                   => "L:256",
 					"address3"                   => "L:256",
-					"address4"                   => "",//削除対処
-					"address5"                   => "",//削除対処
-					"address6"                   => "",//削除対処
+					"address4"                   => "L:256",
+					"address5"                   => "L:256",
+					"address6"                   => "L:256",
 					"tel"                        => "L:13,N",
 					"fax"                        => "L:13,N",
 					"office_number"              => "D",

@@ -24,15 +24,17 @@ class Process29{
 		try {
 			$noFiles = true;
 			$dir = getExportPath();
-			//check if file exist
 			if(file_exists($dir)){
-				$dh = opendir($dir);
-				//loop all the files on the export directory
-				while (false !== ($filename = readdir($dh))) {
-					if ($filename != "." && $filename != "..") {
-						$noFiles = false;
-						$this->convFileEncoding($filename);
+				// ディレクトリの内容を読み込みます。
+				if ($dh = opendir($dir)) {
+					//loop all the files on the export directory
+					while (false !== ($filename = readdir($dh))) {
+						if ($filename != "." && $filename != "..") {
+							$noFiles = false;
+							$this->convFileEncoding($filename);
+						}
 					}
+					closedir($dh);
 				}
 			}
 			//If there are no files: write it down on the error file

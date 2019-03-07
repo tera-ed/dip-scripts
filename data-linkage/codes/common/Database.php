@@ -200,7 +200,7 @@ class Database{
 	 */
 	function insertData($table, $params){
 		try {
-			$this->logger->info("Register data to $table table");
+			$this->logger->info("Register data to $table table with BATCH DB");
 			$insertData = $this->getInsertFields($params, $table);
 			$columns = implode(',', array_keys($insertData));
 			$values = implode(',', array_fill(0, count($insertData), '?'));
@@ -252,7 +252,7 @@ class Database{
 	 */
 	function updateData($table, $updateFields, $condition = null, $params = array()){
 		try{
-			$this->logger->info("Update data to $table table");
+			$this->logger->info("Update data to $table table with BATCH DB");
 			$fields = $this->getUpdateFields($updateFields, $table);
 			
 			$from = $this->setSchema($table);

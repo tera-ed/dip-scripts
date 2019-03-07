@@ -27,7 +27,7 @@ INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
 
 # 起動有無パターン名
-PREFIX_OF_FILENAME_ON_PROCESSING="MOVE_TABAITAI_PROCESSING"
+PREFIX_OF_FILENAME_ON_PROCESSING=${PROCESSING5}
 FILENAME_ABOUT_PROCESSING=${PREFIX_OF_FILENAME_ON_PROCESSING}"_"`date +'%Y%m%d%H%M%S'`
 
 #ログファイル名
@@ -35,8 +35,6 @@ LOG_FILENAME=${PREFIX_OF_FILENAME_ON_PROCESSING}${LOGFILE_SUFFIX}
 
 #PHPバッチ起動
 IS_TABAITAI_START=${FALSE}
-
-TABAITAI_DIR_PATHS=("/home/teramgmt/oya_work/tabaitai_csv/1" "/home/teramgmt/oya_work/tabaitai_csv/2" "/home/teramgmt/oya_work/tabaitai_csv/3" "/home/teramgmt/oya_work/tabaitai_csv/4")
 
 #P11ディレクトリ
 MOVE_TODAY_DIR=${IMPORT_AFTER_DIR_PATH}/`date +'%Y%m%d'`"_11"
@@ -104,12 +102,12 @@ function main {
     DIR1=`date -d "1 day ago" +'%Y%m%d'`"_11"
     input_csv_fullpath_array=(${IMPORT_AFTER_DIR_PATH}/${DIR1})
 
-    for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+    for input_csv_fullpath1 in ${input_csv_fullpath_array[@]}; do
       if [ ${IS_TABAITAI_START} = ${TRUE} ] ; then
         break
       fi
-
-      for input_csv_fullpath1 in ${input_csv_fullpath_array[@]}; do
+      
+      for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
         if [ -e ${input_csv_fullpath1} ]; then
           if [ ${IS_TABAITAI_START} = ${TRUE} ] ; then
             break
@@ -118,8 +116,14 @@ function main {
           remove_dir ${input_csv_fullpath1}
         fi
       done
+    done
 
-      for input_csv_fullpath2 in ${TABAITAI_DIR_PATHS[@]}; do
+    for input_csv_fullpath2 in ${TABAITAI_DIR_PATHS[@]}; do
+      if [ ${IS_TABAITAI_START} = ${TRUE} ] ; then
+        break
+      fi
+      
+      for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
         if [ -e ${input_csv_fullpath2} ]; then
           if [ ${IS_TABAITAI_START} = ${TRUE} ] ; then
             break

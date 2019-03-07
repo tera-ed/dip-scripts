@@ -22,6 +22,7 @@ source ./utils.sh
 
 # 読込ファイルパターン名
 INPUT_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_MDA_RES} ${INPUT_FILE_NAME_PATTERN_FORCE_RES})
+TABAITAI_FILE_NAME_PATTERNS=(${INPUT_FILE_NAME_PATTERN_TABAITAI} ${INPUT_FILE_NAME_PATTERN_FORCE})
 
 # 起動有無
 GLOBAL_VAR_ON_PROCESSING=${FALSE}
@@ -48,21 +49,19 @@ function tabaitai_csv_file {
   
   if [ -e ${one_dir} ]; then
     for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
-      if [ -e ${input_csv_fullpath} ]; then
-        num_of_csv_files1=`find ${one_dir} -maxdepth 1 -regex ${input_file_name_pattern} -type f | wc -l | sed -e 's/ //g'`
-        if [ ${num_of_csv_files1} -gt 0 ] ; then
-          # 取込ファイルが存在する
-          input_csvfile_fullpath_array=`find ${one_dir} -maxdepth 1 -regex ${input_file_name_pattern} -type f | sort`
-          for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
-            # 移動
-            move_input_csv_file ${input_csvfile_fullpath} ${MOVE_TODAY_DIR}/
-            # バッチフラグ
-            if [ ${IS_LBC_BACH_START} = ${FALSE} ] ; then
-              IS_LBC_BACH_START=${TRUE}
-            fi
-          done
-          
-        fi
+      num_of_csv_files1=`find ${one_dir} -maxdepth 1 -regex ${input_file_name_pattern} -type f | wc -l | sed -e 's/ //g'`
+      if [ ${num_of_csv_files1} -gt 0 ] ; then
+        # 取込ファイルが存在する
+        input_csvfile_fullpath_array=`find ${one_dir} -maxdepth 1 -regex ${input_file_name_pattern} -type f | sort`
+        for input_csvfile_fullpath in $input_csvfile_fullpath_array; do
+          # 移動
+          move_input_csv_file ${input_csvfile_fullpath} ${MOVE_TODAY_DIR}/
+          # バッチフラグ
+          if [ ${IS_LBC_BACH_START} = ${FALSE} ] ; then
+            IS_LBC_BACH_START=${TRUE}
+          fi
+        done
+        
       fi
     done
   fi
@@ -78,23 +77,41 @@ function main {
 
   is_processing=${FALSE}
   if [ "$(ls ./${PROCESSING1}* 2>/dev/null)" = '' ] ; then
-    is_processing=${TRUE}
-    
-    # 対応する他媒体ファイル検索
-    DIR1=`date +'%Y%m%d'`'_11'
-    output_dir_path=${IMPORT_AFTER_DIR_PATH}/${DIR1}
-    if [ -e ${output_dir_path} ]; then
-      num_of_csv_files=`find ${output_dir_path} -type f -name "${INPUT_FILE_NAME_PATTERN_TABAITAI}" -type f | wc -l`
-      if [ ${num_of_csv_files} -gt 0 ] ; then
-        info_echo "already creating_mda_request csv files [path : "${output_dir_path}"]. exit."
-        is_processing=${FALSE}
+    if [ "$(ls ./${PROCESSING7}* 2>/dev/null)" = '' ] ; then
+      is_processing=${TRUE}
+      
+      # 対応する他媒体ファイル検索
+      DIR1=`date +'%Y%m%d'`'_11'
+      output_dir_path=${IMPORT_AFTER_DIR_PATH}/${DIR1}
+      if [ -e ${output_dir_path} ]; then
+        for input_file_name_pattern in ${TABAITAI_FILE_NAME_PATTERNS[@]}; do
+          num_of_csv_files1=`find ${output_dir_path} -maxdepth 1 -name ${input_file_name_pattern}  -type f | wc -l | sed -e 's/ //g'`
+          if [ ${num_of_csv_files1} -gt 0 ] ; then
+            # 取込ファイルが存在する
+            info_echo "already creating_mda_request csv files [path : "${output_dir_path}"]. exit."
+            is_processing=${FALSE}
+            break
+          fi
+        done
       fi
+    else
+      info_echo "during startup crm_src_cfl.sh. exit."
     fi
   else
     info_echo "during startup creating_mda_request.sh. exit."
   fi
   
+  is_python=${FALSE}
   if [ ${is_processing} = ${TRUE} ] ; then
+    num_of_python=`ps aux | grep python3 2>/dev/null | grep src/main_excel.py 2>/dev/null | grep -v grep | wc -l`
+    if [ ${num_of_python} -gt 0 ] ; then
+      info_echo "during startup "${PYTHON_SOURCE_DIR_PATH}"/src/main_excel.py exit."
+    else
+      is_python=${TRUE}
+    fi
+  fi
+  
+  if [ ${is_python} = ${TRUE} ] ; then
     make_dir ${MOVE_TODAY_DIR}
     # 当日取込結果
     DIR1=`date +'%Y%m%d'`${BACKUP_FILE_NAME_PATTERN}
@@ -108,18 +125,18 @@ function main {
     for input_csv_fullpath in ${input_csv_fullpath_array[@]}; do
       tabaitai_csv_file ${input_csv_fullpath}
     done
-  fi
-  
-  if [ -e ${MOVE_TODAY_DIR} -a ${IS_LBC_BACH_START} = ${FALSE} ]; then
-    for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
-      num_csv=`find ${MOVE_TODAY_DIR} -maxdepth 1 -name ${INPUT_FILE_NAME_PATTERN_TABAITAI}  -type f | wc -l | sed -e 's/ //g'`
-      if [ ${num_csv} -gt 0 ] ; then
+    
+    if [ -e ${MOVE_TODAY_DIR} -a ${IS_LBC_BACH_START} = ${FALSE} ]; then
+      for input_file_name_pattern in ${INPUT_FILE_NAME_PATTERNS[@]}; do
+        num_of_csv_files1=`find ${MOVE_TODAY_DIR} -maxdepth 1 -regex ${input_file_name_pattern} -type f | wc -l | sed -e 's/ //g'`
+        if [ ${num_of_csv_files1} -gt 0 ] ; then
           # 取込ファイルが存在する
           IS_LBC_BACH_START=${TRUE}
-      fi
-    done
+        fi
+      done
+    fi
   fi
-  
+
   if [ ${IS_LBC_BACH_START} = ${TRUE} ] ; then
     # 1つでもファイルが存在する場合
     lbc_maching_batch_start
@@ -127,6 +144,7 @@ function main {
     # 存在しない場合
     info_echo "no new csv files. exit."
   fi
+
   remove_dir ${MOVE_TODAY_DIR}
   end_time
 }

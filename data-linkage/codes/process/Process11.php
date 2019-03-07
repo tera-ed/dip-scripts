@@ -41,6 +41,8 @@ class Process11 {
 	const OUT_FILE_NAME2 = '11_t_media_match_wait';
 	const OUTPUT_PROGRESS = 100000;
 	const LF_CODE = "\n";
+	const ENCODING = 'UTF-8';
+
 
 	function __construct($logger){
 		$this->logger = $logger;
@@ -187,12 +189,12 @@ class Process11 {
 											$forceCsvData = array();
 											$forceCsvData[]	= $tableData[$this->header_data[39]];	//媒体コード
 											$forceCsvData[]	= $tableData[$this->header_data[40]];	//顧客コード
-											$forceCsvResult = array_merge($forceCsvResult, array($forceCsvData));
+											$forceCsvResult[] = $forceCsvData;
 										}
 									}else{
 										$this->isError = true;
 										$this->logger->info("[".$file_name."] [Row : " . $in_file_row_cnt . " ] Not validateData");
-										$this->moveErrorTabaitaiCsv($fName);
+										$this->logger->debug(var_export($tableData , true));
 									}
 									/* 入力ファイル行カウンターが max_commit_size に達するたびにコミット */
 									if(($in_file_row_cnt % $MAX_COMMIT_SIZE) == 0 || ($row + 1) == sizeof($csvList)){
@@ -269,46 +271,36 @@ class Process11 {
 		} catch (PDOException $e1){ // database error
 			$this->logger->debug("Error found in database.");
 			$this->logger->error($e2->getMessage());
-			if($this->db) {
-				if((isset($in_file_row_cnt) && $in_file_row_cnt > 0)){
-					$this->db->rollback();
-				}
-				// close database connection
-				$this->db->disconnect();
-			}
-			if($this->rds_db) {
-				// close database connection
-				$this->rds_db->disconnect();
-			}
+			$this->disconnect(isset($in_file_row_cnt) && $in_file_row_cnt > 0);
 			
-			//$this->mail->sendMail();
+			$this->mail->sendMail();
 			throw $e1;
 		} catch (Exception $e2){ // error
 			// write down the error contents in the error file
 			$this->logger->debug("Error found in process.");
 			$this->logger->error($e2->getMessage());
-			if($this->db) {
-				// close database connection
-				$this->db->disconnect();
-			}
-			if($this->rds_db) {
-				// close database connection
-				$this->rds_db->disconnect();
-			}
+			$this->disconnect();
 			// If there are no files:
 			// Skip the process on and after the corresponding process number
 			// and proceed to the next process number (ERR_CODE: 602)
 			// For system error pause process
 			if(602 != $e2->getCode()) {
-				//$this->mail->sendMail();
+				$this->mail->sendMail();
 				throw $e2;
 			}
 		}
 		if($this->isError){
 			// send mail if there is error
-			//$this->mail->sendMail();
+			$this->mail->sendMail();
 		}
+		$this->disconnect();
+	}
+	
+	private function disconnect($isRollback=false){
 		if($this->db) {
+			if($isRollback){
+				$this->db->rollback();
+			}
 			// close database connection
 			$this->db->disconnect();
 		}
@@ -317,7 +309,7 @@ class Process11 {
 			$this->rds_db->disconnect();
 		}
 	}
-
+	
 	/**
 	 * validate csv data
 	 * Regarding the check contents, refer to sheet: 「Excel他媒体データエラーチェック」
@@ -333,7 +325,8 @@ class Process11 {
 			if(!$this->isNull($data[$media_name])){
 				if($data[$media_name] == "town_work")$data[$media_name] = "TownWork";
 				
-				if (isset($this->media_mass_array[$data[$media_name]])){
+				$key1 = mb_strtolower($data[$media_name], self::ENCODING);
+				if (isset($this->media_mass_array[$key1])){
 					$bool = $this->validate->execute($data, $this->fieldsChecking($filename, $isForce), $row, $filename, $this->header_data);
 					$this->logger->info("[".$filename."] ROW[".$row."] :".$media_name.":".$data[$media_name]." exist on [他媒体マスター].");
 				} else {
@@ -366,33 +359,6 @@ class Process11 {
 			}
 		}
 		return false;
-	}
-
-	/**
-	 * acquire the compe_media_code from m_media_mass by media_name
-	 * 他媒体マスターからメディア名を使い競合媒体コードとメディアタイプを出力
-	 *
-	 * @param string $media_name
-	 * @throws Exception
-	 * @return string compe_media_code
-	 */
-	function getMediaMassInfoByName($media_name){
-		try{
-			$val = array('compe_media_code' => null,'media_type' => null);
-			if(!$this->isNull($media_name)){
-				if($media_name == "town_work")$media_name = "TownWork";
-				
-				if (array_key_exists($media_name, $this->media_mass_array)){
-					$result = $this->media_mass_array[$media_name];
-					
-					$val['compe_media_code'] = $result['compe_media_code'];
- 					$val['media_type'] = $result['media_type'];
-				}
-	 		}
-		}catch(Exception $e){
-			throw $e;
-		}
-		return $val;
 	}
 
 	/**
@@ -579,7 +545,20 @@ class Process11 {
 			}
 
 			// 媒体名→競合媒体コード、媒体種別取得
-			$mediaMassInfo = $this->getMediaMassInfoByName($val[$this->header_data[1]]);
+			$media_name = $val[$this->header_data[1]];
+			$mediaMassInfo = array('compe_media_code' => null,'media_type' => null);
+			if(!$this->isNull($media_name)){
+				if($media_name == "town_work")$media_name = "TownWork";
+				
+				$key1 = mb_strtolower($media_name, self::ENCODING);
+				if (isset($this->media_mass_array[$key1])){
+					$result = $this->media_mass_array[$key1];
+					
+					$mediaMassInfo['compe_media_code'] = $result['compe_media_code'];
+ 					$mediaMassInfo['media_type'] = $result['media_type'];
+				}
+	 		}
+			
 			
 			/*** 20180130 廃止
 			// リクナビ派遣特殊処理 フラグ数 28列目の[フラグスペース]を25列目の[フラグ数]へ移動
@@ -596,7 +575,7 @@ class Process11 {
 				$calc_data['plan']="";
 			}else{
 				// 金額,プラン名取得 @媒体コード 媒体名 エリア名 広告スペース フラグ数
-				$calc_data	= $this->getAmountAndPlan($mediaCode, $val[$this->header_data[1]], $area_name, $val[$this->header_data[18]], $val[$this->header_data[24]]);
+				$calc_data	= $this->getAmountAndPlan($mediaCode, $val[$this->header_data[1]], $area_name, $val[$this->header_data[18]], $val[$this->header_data[24]], $mediaMassInfo['compe_media_code']);
 			}
 
 			// Excel上の掲載案件数が空だった場合は、広告スペースとフラグ数の処理した数を掲載案件数とする 20160818tyamashita
@@ -649,8 +628,9 @@ class Process11 {
 			//If the(listed_marked) of the process-target record is not
 			//(null or blank), substitute the [m_listed_media.listed_name] of the
 			//他媒体上場市場マスター ] and the matched [m_listed_media.listed_code].
-			if ($listed_code!=0 && isset($this->listed_media_array[$listed_code])){
-				$listed_name = $this->listed_media_array[$listed_code]['listed_name'];
+			$key = mb_strtolower($listed_code, self::ENCODING);
+			if ($listed_code!=0 && isset($this->listed_media_array[$key])){
+				$listed_name = $this->listed_media_array[$key]['listed_name'];
 			} else{
 				$listed_name = $listed_code;
 			}
@@ -727,7 +707,7 @@ class Process11 {
 	 * 他媒体CSV ->
 	 *
 	 */
-	function getAmountAndPlan($media_code, $media_name, $area_name, $space, $flag_count){
+	function getAmountAndPlan($media_code, $media_name, $area_name, $space, $flag_count, $compe_media_code){
 		$cond_kbn_space			= "広告スペース";
 		$cond_kbn_flag_count	= "フラグ数";
 
@@ -757,7 +737,15 @@ class Process11 {
 		if(empty($space_arry) && empty($flag_count_arry)){
 			// 2017/10/26 ログレベルを修正（ERROR→INFO）
 			$this->logger->info(self::T_TABLE4." 広告スペース、フラグ数ともにnullのため料金算出なし。media_code:".$media_code);
-			return array('amount'=>0,'plan'=>null);
+			
+			// 派遣特殊処理
+			if(in_array($compe_media_code, array('MMM0000033', 'MMM0000034', 'MMM0000035', 'MMM0000036'))){
+				return array('amount'=>0,'plan'=>null,'post_count'=>null);
+			}
+			// それ以外
+			else {
+				return array('amount'=>0,'plan'=>null,'post_count'=>1);
+			}
 		}
 
 		if(!empty($space_arry)){
@@ -793,14 +781,17 @@ class Process11 {
 				// m_chargeからプランと料金を取得
 				$m_charger = array();
 				try{
-					if (isset($this->charge_array[$media_name][$area_name][$key_kbn][$num])){
-						$m_charger = array($this->charge_array[$media_name][$area_name][$key_kbn][$num]);
+					$key1 = mb_strtolower($media_name, self::ENCODING);
+					$key2 = mb_strtolower($area_name, self::ENCODING);
+					$key3 = mb_strtolower($key_kbn, self::ENCODING);
+					if (isset($this->charge_array[$key1][$key2][$key3][$num])){
+						$m_charger = array($this->charge_array[$key1][$key2][$key3][$num]);
 						$this->logger->debug(self::M_TABLE1." 通常検索。media_name:".$media_name." 区分:".$key_kbn." number:".$num." エリア名:".$area_name);
-					
 					}
 					// 検索で当てはまらなければエリアを「全エリア」にして再検索
-					if (!isset($m_charger[0]) && isset($this->charge_array[$media_name]["全エリア"][$key_kbn][$num])){
-						$m_charger = array($this->charge_array[$media_name]["全エリア"][$key_kbn][$num]);
+					$key4 = mb_strtolower("全エリア", self::ENCODING);
+					if (!isset($m_charger[0]) && isset($this->charge_array[$key1][$key4][$key3][$num])){
+						$m_charger = array($this->charge_array[$key1][$key4][$key3][$num]);
 						$this->logger->debug(self::M_TABLE1." 全エリア再検索。media_name:".$media_name." 区分:".$key_kbn." number:".$num);
 					}
 				}catch(Exception $e){
@@ -831,16 +822,20 @@ class Process11 {
 
 	function getMasterDataList(){
 		try{
-			$array = $this->db->getData("media_name,area,kbn,number,plan_name,amount", self::M_TABLE1, null, array());
+			$array = $this->db->getData("media_name, area, kbn, number, plan_name, amount", self::M_TABLE1, null, array());
 			foreach ($array as $row) {
-				$this->charge_array[$row['media_name']][$row['area']][$row['kbn']][$row['number']] = $row;
+				$key1 = mb_strtolower($row['media_name'], self::ENCODING);
+				$key2 = mb_strtolower($row['area'], self::ENCODING);
+				$key3 = mb_strtolower($row['kbn'], self::ENCODING);
+				$this->charge_array[$key1][$key2][$key3][$row['number']] = $row;
 			}
 			
 			// 他媒体マスターからメディア名を使い競合媒体コードとメディアタイプを出力
 			// acquire the compe_media_code from m_media_mass by media_name
 			$array = $this->rds_db->getData("media_name, compe_media_code, media_type", self::M_TABLE2, null, array());
 			foreach ($array as $row) {
-				$this->media_mass_array[$row['media_name']] = $row;
+				$key = mb_strtolower($row['media_name'], self::ENCODING);
+				$this->media_mass_array[$key] = $row;
 			}
 			
 			// ナイトJOB取得 1：事業内容、2：職種、3：会社名毎にキーワード取得
@@ -859,7 +854,8 @@ class Process11 {
 			
 			$array = $this->db->getData("listed_code,listed_name,new_listed_code", self::M_TABLE5, null, array());
 			foreach ($array as $row) {
-				$this->listed_media_array[$row['listed_code']] = $row;
+				$key = mb_strtolower($row['listed_code'], self::ENCODING);
+				$this->listed_media_array[$key] = $row;
 			}
 			
 			// フィールドタイトル取得
